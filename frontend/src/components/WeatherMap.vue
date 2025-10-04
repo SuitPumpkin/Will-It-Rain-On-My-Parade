@@ -1,45 +1,41 @@
 <template>
-  <div id="app">
+  <div class="weather-app">
     <h1 class="title">Tamales.exe || ¿Va a llover?</h1>
 
-    <!-- Formulario -->
-    <div class="form">
+    <!-- Controles -->
+    <div class="controls">
       <label>
-        Selecciona una ciudad:
+        Ciudad:
         <select v-model="selectedCity">
-          <option disabled value="">-- Elige una ciudad --</option>
-          <option
-            v-for="(coords, city) in cities"
-            :key="city"
-            :value="city"
-          >
+          <option disabled value="">-- Selecciona una ciudad --</option>
+          <option v-for="(coords, city) in cities" :key="city" :value="city">
             {{ city }}
           </option>
         </select>
       </label>
 
       <label>
-        Selecciona una fecha:
+        Fecha:
         <div class="date-controls">
-          <button @click="cambiarDia(-1)">⬅️</button>
+          <button @click="changeDay(-1)">⬅️</button>
           <input type="date" v-model="selectedDate" />
-          <button @click="cambiarDia(1)">➡️</button>
+          <button @click="changeDay(1)">➡️</button>
         </div>
       </label>
 
-      <button @click="buscarCiudad">Buscar</button>
+      <button class="btn-search" @click="searchWeather">Buscar</button>
     </div>
 
-    <!-- Contenedor principal -->
+    <!-- Contenedor principal: mapa + panel de clima -->
     <div class="main-container">
       <div id="map"></div>
 
-      <div class="weather-panel" v-if="weather">
+      <div v-if="weatherData" class="weather-panel">
         <h2>Clima en {{ selectedCity }}</h2>
-        <p><b>Temperatura:</b> {{ weather.temp }}°C</p>
-        <p><b>Sensación térmica:</b> {{ weather.feels_like }}°C</p>
-        <p><b>Humedad:</b> {{ weather.humidity }}%</p>
-        <p><b>Condición:</b> {{ weather.description }}</p>
+        <p><b>Temperatura:</b> {{ weatherData.temp }}°C</p>
+        <p><b>Sensación térmica:</b> {{ weatherData.feels_like }}°C</p>
+        <p><b>Humedad:</b> {{ weatherData.humidity }}%</p>
+        <p><b>Condición:</b> {{ weatherData.description }}</p>
       </div>
     </div>
   </div>
@@ -48,138 +44,103 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 
-const map = ref(null);
-const marker = ref(null);
 const selectedCity = ref("");
-const selectedDate = ref("");
-const weather = ref(null);
+const selectedDate = ref(new Date().toISOString().slice(0, 10));
+const weatherData = ref(null);
 
+// Lista de ciudades
 const cities = {
   "Ciudad de México": [19.4326, -99.1332],
   Guadalajara: [20.6597, -103.3496],
   Monterrey: [25.6866, -100.3161],
+  Puebla: [19.0413, -98.2062],
   Cancún: [21.1619, -86.8515],
 };
 
+// Datos falsos de clima
+const mockWeatherData = [
+  { temp: 25, feels_like: 27, humidity: 60, description: "Soleado con nubes" },
+  {
+    temp: 28,
+    feels_like: 30,
+    humidity: 55,
+    description: "Parcialmente nublado",
+  },
+  { temp: 30, feels_like: 33, humidity: 70, description: "Lluvia ligera" },
+  { temp: 22, feels_like: 22, humidity: 80, description: "Lluvia moderada" },
+  { temp: 18, feels_like: 17, humidity: 90, description: "Tormenta eléctrica" },
+];
+
+// Función fake para obtener clima (manteniendo los parámetros para futuro backend)
+// eslint-disable-next-line
+function getFakeWeather(_lat, _lon, _date) {
+  const random = Math.floor(Math.random() * mockWeatherData.length);
+  return mockWeatherData[random];
+}
+
+let map;
+
 onMounted(() => {
-  map.value = L.map("map").setView([23.6345, -102.5528], 5);
+  map = L.map("map").setView([23.6345, -102.5528], 5);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
-  }).addTo(map.value);
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
 });
 
-async function buscarCiudad() {
-  if (!selectedCity.value || !selectedDate.value) {
-    alert("Por favor selecciona ciudad y fecha.");
-    return;
-  }
+// Buscar clima (fake)
+function searchWeather() {
+  if (!selectedCity.value) return;
 
   const coords = cities[selectedCity.value];
-  map.value.setView(coords, 13, { animate: true });
+  map.setView(coords, 10);
 
-  if (marker.value) map.value.removeLayer(marker.value);
-  marker.value = L.marker(coords).addTo(map.value);
-  marker.value
-    .bindPopup(`<b>${selectedCity.value}</b><br>Fecha: ${selectedDate.value}`)
+  const fakeData = getFakeWeather(coords[0], coords[1], selectedDate.value);
+  weatherData.value = fakeData;
+
+  L.marker(coords)
+    .addTo(map)
+    .bindPopup(
+      `
+      <b>${selectedCity.value}</b><br>
+      Fecha: ${selectedDate.value}<br>
+      Temperatura: ${fakeData.temp}°C<br>
+      Sensación: ${fakeData.feels_like}°C<br>
+      Humedad: ${fakeData.humidity}%<br>
+      ${fakeData.description}
+    `
+    )
     .openPopup();
-
-  await fetchWeatherFromBackend(coords[0], coords[1], selectedDate.value);
 }
 
-async function cambiarDia(direccion) {
-  if (!selectedCity.value) {
-    alert("Por favor selecciona primero una ciudad.");
-    return;
-  }
-
-  if (!selectedDate.value) {
-    selectedDate.value = new Date().toISOString().split("T")[0];
-  } else {
-    const fecha = new Date(selectedDate.value);
-    fecha.setDate(fecha.getDate() + direccion);
-    selectedDate.value = fecha.toISOString().split("T")[0];
-  }
-
-  if (marker.value) {
-    marker.value
-      .setPopupContent(`<b>${selectedCity.value}</b><br>Fecha: ${selectedDate.value}`)
-      .openPopup();
-  }
-
-  const coords = cities[selectedCity.value];
-  await fetchWeatherFromBackend(coords[0], coords[1], selectedDate.value);
+// Cambiar de día
+function changeDay(days) {
+  const date = new Date(selectedDate.value);
+  date.setDate(date.getDate() + days);
+  selectedDate.value = date.toISOString().slice(0, 10);
 }
-
-// 🔧 versión real: consulta el backend Flask
-async function fetchWeatherFromBackend(lat, lon, date) {
-  try {
-    const res = await fetch(`http://localhost:5000/api/weather?lat=${lat}&lon=${lon}&date=${date}`);
-    const data = await res.json();
-
-    weather.value = {
-      temp: data.temp,
-      feels_like: data.feels_like,
-      humidity: data.humidity,
-      description: data.description,
-    };
-  } catch (err) {
-    console.error("Error al obtener el clima del backend:", err);
-    weather.value = null;
-  }
-}
-
-// 💡 si aún no tienes backend funcionando, puedes usar estos datos de prueba:
-const mockWeatherData = {
-  "Ciudad de México": { temp: 25, feels_like: 27, humidity: 60, description: "Soleado con nubes" },
-  Guadalajara: { temp: 28, feels_like: 30, humidity: 55, description: "Parcialmente nublado" },
-  Monterrey: { temp: 32, feels_like: 35, humidity: 40, description: "Soleado" },
-  Cancún: { temp: 30, feels_like: 33, humidity: 70, description: "Lluvia ligera" },
-};
-
-// si quieres usar mock temporalmente, comenta la función real y usa esta:
-///*
-// async function fetchWeatherFromBackend(lat, lon, date) {
-//   const city = Object.keys(cities).find(
-//     c => cities[c][0] === lat && cities[c][1] === lon
-//   );
-//   if (city) {
-//     setTimeout(() => {
-//       weather.value = mockWeatherData[city];
-//     }, 300);
-//   } else {
-//     weather.value = null;
-//   }
-// }
-//*/
 </script>
 
 <style scoped>
-body {
-  margin: 0;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: #f2f6ff;
-  color: #333;
-}
-#app {
-  max-width: 900px;
+.weather-app {
+  max-width: 1000px;
   margin: 2rem auto;
-  padding: 1rem;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: #f9fbff;
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
+
 .title {
   text-align: center;
   font-size: 2rem;
   color: #2c3e50;
   margin-bottom: 1.5rem;
 }
-.form {
+
+.controls {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -187,12 +148,14 @@ body {
   align-items: center;
   margin-bottom: 1.5rem;
 }
-.form label {
+
+label {
   display: flex;
   flex-direction: column;
   font-weight: 500;
   color: #34495e;
 }
+
 select,
 input[type="date"] {
   padding: 0.5rem 0.75rem;
@@ -202,66 +165,95 @@ input[type="date"] {
   font-size: 1rem;
   transition: all 0.2s;
 }
+
 select:focus,
 input[type="date"]:focus {
   border-color: #4a90e2;
   outline: none;
-  box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+  box-shadow: 0 0 8px rgba(74, 144, 226, 0.4);
 }
-button {
-  padding: 0.5rem 1rem;
-  background: #4a90e2;
-  color: white;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-button:hover {
-  background: #357abd;
-}
+
 .date-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-.date-controls button {
-  background: #7fb3ff;
-  padding: 0.4rem 0.8rem;
+
+button {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-.date-controls button:hover {
-  background: #5a94e5;
+
+button:hover {
+  transform: translateY(-2px);
 }
+
+.btn-search {
+  background: linear-gradient(90deg, #4a90e2, #357abd);
+  color: white;
+}
+
+.btn-search:hover {
+  background: linear-gradient(90deg, #357abd, #2c3e50);
+}
+
+/* Contenedor principal */
+.main-container {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Mapa */
 #map {
+  flex: 2;
   height: 500px;
-  width: 100%;
   border-radius: 12px;
   border: 1px solid #d0d7e0;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
 }
+
 #map:hover {
   transform: scale(1.01);
 }
-.main-container {
-  display: flex;
-  gap: 1rem;
-}
+
+/* Panel de clima */
 .weather-panel {
-  width: 250px;
-  padding: 1rem;
-  background: #f0f4ff;
+  flex: 1;
+  padding: 1rem 1.2rem;
+  background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  height: fit-content;
 }
+
 .weather-panel h2 {
   margin-top: 0;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   color: #2c3e50;
 }
+
 .weather-panel p {
-  margin: 0.3rem 0;
+  margin: 0.4rem 0;
+}
+
+/* Responsive: panel debajo del mapa en pantallas pequeñas */
+@media (max-width: 900px) {
+  .main-container {
+    flex-direction: column;
+  }
+
+  #map {
+    width: 100%;
+  }
+
+  .weather-panel {
+    width: 100%;
+  }
 }
 </style>
