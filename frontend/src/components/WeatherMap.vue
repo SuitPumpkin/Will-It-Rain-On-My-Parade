@@ -43,24 +43,93 @@
         <p><b>Sensación térmica:</b> {{ weatherData.feels_like }}°C</p>
         <p><b>Humedad:</b> {{ weatherData.humidity }}%</p>
         <p><b>Condición:</b> {{ weatherData.description }}</p>
+
+        <!-- Gráfico de temperatura por hora -->
+        <canvas ref="chartCanvas"></canvas>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import L from "leaflet";
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+} from "chart.js";
 
-// Estado del componente
+ChartJS.register(
+  Title,
+  Tooltip,
+  Legend,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement
+);
+
+// Estados
 const selectedCity = ref("");
 const selectedDate = ref(new Date().toISOString().slice(0, 10));
 const weatherData = ref(null);
 const allCities = ref([]);
 const displayedCities = ref([]);
+const hourlyData = ref(
+  Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, temp: 0 }))
+);
 const CHUNK_SIZE = 50;
 
-// Función para cargar más ciudades en el select
+// Chart.js
+const chartCanvas = ref(null);
+let chartInstance = null;
+
+const createChart = () => {
+  if (chartCanvas.value) {
+    chartInstance = new ChartJS(chartCanvas.value, {
+      type: "line",
+      data: {
+        labels: hourlyData.value.map((d) => d.hour),
+        datasets: [
+          {
+            label: "Temperatura por hora (°C)",
+            data: hourlyData.value.map((d) => d.temp),
+            borderColor: "#4a90e2",
+            backgroundColor: "rgba(74,144,226,0.2)",
+            fill: true,
+            tension: 0.3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: true, position: "top" } },
+        scales: { y: { beginAtZero: true } },
+      },
+    });
+  }
+};
+
+// Actualizar gráfico al cambiar los datos
+watch(
+  hourlyData,
+  (newData) => {
+    if (chartInstance) {
+      chartInstance.data.labels = newData.map((d) => d.hour);
+      chartInstance.data.datasets[0].data = newData.map((d) => d.temp);
+      chartInstance.update();
+    }
+  },
+  { deep: true }
+);
+
+// Cargar más ciudades
 function loadMoreCities() {
   const current = displayedCities.value.length;
   displayedCities.value.push(
@@ -68,25 +137,37 @@ function loadMoreCities() {
   );
 }
 
-// Datos falsos de clima
-const mockWeatherData = [
-  { temp: 25, feels_like: 27, humidity: 60, description: "Soleado con nubes" },
-  {
-    temp: 28,
-    feels_like: 30,
-    humidity: 55,
-    description: "Parcialmente nublado",
-  },
-  { temp: 30, feels_like: 33, humidity: 70, description: "Lluvia ligera" },
-  { temp: 22, feels_like: 22, humidity: 80, description: "Lluvia moderada" },
-  { temp: 18, feels_like: 17, humidity: 90, description: "Tormenta eléctrica" },
-];
-
 // eslint-disable-next-line no-unused-vars
 function getFakeWeather(lat, lon, date) {
-  // lat, lon y date se mantienen para futura compatibilidad con backend
-  const random = Math.floor(Math.random() * mockWeatherData.length);
-  return mockWeatherData[random];
+  // lat, lon, date para futura compatibilidad
+  hourlyData.value = Array.from({ length: 24 }, (_, i) => ({
+    hour: `${i}:00`,
+    temp: Math.floor(Math.random() * 15) + 15,
+  }));
+
+  const random = Math.floor(Math.random() * 5);
+  return [
+    {
+      temp: 25,
+      feels_like: 27,
+      humidity: 60,
+      description: "Soleado con nubes",
+    },
+    {
+      temp: 28,
+      feels_like: 30,
+      humidity: 55,
+      description: "Parcialmente nublado",
+    },
+    { temp: 30, feels_like: 33, humidity: 70, description: "Lluvia ligera" },
+    { temp: 22, feels_like: 22, humidity: 80, description: "Lluvia moderada" },
+    {
+      temp: 18,
+      feels_like: 17,
+      humidity: 90,
+      description: "Tormenta eléctrica",
+    },
+  ][random];
 }
 
 // Buscar clima
@@ -124,16 +205,16 @@ function changeDay(days) {
   selectedDate.value = date.toISOString().slice(0, 10);
 }
 
-// Inicializar mapa y cargar ciudades desde public
+// Inicializar mapa y cargar ciudades
 let map;
 onMounted(async () => {
-  // Inicializar mapa Leaflet
+  // Inicializar mapa
   map = L.map("map").setView([23.6345, -102.5528], 5);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
 
-  // Cargar JSON de ciudades
+  // Cargar ciudades desde public
   try {
     const res = await fetch("/datasets/worldcities.json");
     const data = await res.json();
@@ -146,6 +227,8 @@ onMounted(async () => {
   } catch (err) {
     console.error("Error al cargar ciudades:", err);
   }
+
+  createChart();
 });
 </script>
 
@@ -159,14 +242,12 @@ onMounted(async () => {
   border-radius: 16px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
-
 .title {
   text-align: center;
   font-size: 2rem;
   color: #2c3e50;
   margin-bottom: 1.5rem;
 }
-
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -175,14 +256,12 @@ onMounted(async () => {
   align-items: center;
   margin-bottom: 1.5rem;
 }
-
 label {
   display: flex;
   flex-direction: column;
   font-weight: 500;
   color: #34495e;
 }
-
 select,
 input[type="date"] {
   padding: 0.5rem 0.75rem;
@@ -192,20 +271,17 @@ input[type="date"] {
   font-size: 1rem;
   transition: all 0.2s;
 }
-
 select:focus,
 input[type="date"]:focus {
   border-color: #4a90e2;
   outline: none;
   box-shadow: 0 0 8px rgba(74, 144, 226, 0.4);
 }
-
 .date-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-
 button {
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -214,28 +290,21 @@ button {
   cursor: pointer;
   transition: all 0.2s;
 }
-
 button:hover {
   transform: translateY(-2px);
 }
-
 .btn-search {
   background: linear-gradient(90deg, #4a90e2, #357abd);
   color: white;
 }
-
 .btn-search:hover {
   background: linear-gradient(90deg, #357abd, #2c3e50);
 }
-
-/* Contenedor principal */
 .main-container {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
 }
-
-/* Mapa */
 #map {
   flex: 2;
   height: 500px;
@@ -244,12 +313,9 @@ button:hover {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
 }
-
 #map:hover {
   transform: scale(1.01);
 }
-
-/* Panel de clima */
 .weather-panel {
   flex: 1;
   padding: 1rem 1.2rem;
@@ -258,27 +324,21 @@ button:hover {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
   height: fit-content;
 }
-
 .weather-panel h2 {
   margin-top: 0;
   font-size: 1.3rem;
   color: #2c3e50;
 }
-
 .weather-panel p {
   margin: 0.4rem 0;
 }
-
-/* Responsive: panel debajo del mapa en pantallas pequeñas */
 @media (max-width: 900px) {
   .main-container {
     flex-direction: column;
   }
-
   #map {
     width: 100%;
   }
-
   .weather-panel {
     width: 100%;
   }
