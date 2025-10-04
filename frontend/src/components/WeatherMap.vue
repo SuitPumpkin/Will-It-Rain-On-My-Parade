@@ -34,18 +34,20 @@
         </div>
       </div>
 
-      <button @click="clearPin">Limpiar pin</button>
+      <div class="controls-group">
+        <button @click="clearPin">Limpiar pin</button>
 
-      <select v-model="selectedDay">
-        <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
-      </select>
-      <select v-model="selectedMonth">
-        <option v-for="(m, index) in months" :key="index" :value="index">
-          {{ m }}
-        </option>
-      </select>
+        <select v-model="selectedDay">
+          <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
+        </select>
+        <select v-model="selectedMonth">
+          <option v-for="(m, index) in months" :key="index" :value="index">
+            {{ m }}
+          </option>
+        </select>
 
-      <button @click="searchWeather">Obtener resultados</button>
+        <button @click="searchWeather">Obtener resultados</button>
+      </div>
     </div>
 
     <div class="main-content">
@@ -98,7 +100,9 @@
         </div>
 
         <h3>Gráficos</h3>
-        <canvas ref="chartCanvas"></canvas>
+        <div class="chart-container">
+          <canvas ref="chartCanvas"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -271,7 +275,7 @@ const setupMapDoubleClick = () => {
           <b>Coordenadas seleccionadas</b><br>
           Lat: ${lat.toFixed(4)}<br>
           Lng: ${lng.toFixed(4)}<br>
-          <em>Doble click para seleccionar</em>
+          <em>Click para seleccionar</em>
         </div>
       `
       )
@@ -381,6 +385,7 @@ const createChart = () => {
             pointBorderColor: "#ffffff",
             pointBorderWidth: 2,
             pointRadius: 4,
+            pointHoverRadius: 6,
           },
         ],
       },
@@ -399,9 +404,18 @@ const createChart = () => {
             },
           },
           tooltip: {
-            backgroundColor: "rgba(30, 41, 59, 0.9)",
+            backgroundColor: "rgba(30, 41, 59, 0.95)",
             titleColor: "#f1f5f9",
             bodyColor: "#f1f5f9",
+            borderColor: "#4a90e2",
+            borderWidth: 1,
+            cornerRadius: 6,
+            displayColors: false,
+            callbacks: {
+              label: function (context) {
+                return `Temperatura: ${context.parsed.y}°C`;
+              },
+            },
           },
         },
         scales: {
@@ -415,6 +429,17 @@ const createChart = () => {
               callback: function (value) {
                 return value + "°C";
               },
+              font: {
+                size: 11,
+              },
+            },
+            title: {
+              display: true,
+              text: "Temperatura (°C)",
+              color: "#f1f5f9",
+              font: {
+                size: 12,
+              },
             },
           },
           x: {
@@ -423,8 +448,28 @@ const createChart = () => {
             },
             ticks: {
               color: "#f1f5f9",
-              maxRotation: 45,
+              maxRotation: 0,
+              font: {
+                size: 11,
+              },
             },
+            title: {
+              display: true,
+              text: "Hora del día",
+              color: "#f1f5f9",
+              font: {
+                size: 12,
+              },
+            },
+          },
+        },
+        interaction: {
+          intersect: false,
+          mode: "index",
+        },
+        elements: {
+          line: {
+            borderWidth: 2,
           },
         },
       },
@@ -643,37 +688,58 @@ onUnmounted(() => {
 
 .controls {
   display: flex;
-  gap: 0.5rem;
+  gap: 1rem;
   margin-bottom: 1rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   position: relative;
+  justify-content: space-between;
 }
 
 .search-container {
   position: relative;
+  flex: 0 0 300px; /* Ancho fijo para la búsqueda */
+  min-width: 250px;
+}
+
+.controls-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex: 1;
-  min-width: 300px;
 }
 
 .controls input,
 .controls select,
 .controls button {
-  padding: 0.4rem 0.8rem;
+  padding: 0.5rem 0.8rem;
   border-radius: 6px;
   border: none;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  height: 38px;
+  box-sizing: border-box;
 }
 
 .controls input {
   width: 100%;
   background: #1e293b;
   color: white;
+  border: 1px solid #334155;
+}
+
+.controls input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
 
 .controls select {
   background: #1e293b;
   color: white;
+  border: 1px solid #334155;
+  min-width: 100px;
 }
 
 .controls button {
@@ -681,6 +747,8 @@ onUnmounted(() => {
   color: white;
   cursor: pointer;
   transition: background-color 0.3s;
+  border: 1px solid #0284c7;
+  white-space: nowrap;
 }
 
 .controls button:hover {
@@ -725,11 +793,13 @@ onUnmounted(() => {
 .city-name {
   font-weight: 600;
   color: #f1f5f9;
+  flex: 1;
 }
 
 .country-name {
   color: #94a3b8;
   font-size: 0.875rem;
+  margin: 0 0.5rem;
 }
 
 .coordinates {
@@ -791,6 +861,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 1rem;
   min-height: 500px;
+  min-width: 300px;
 }
 
 .dashboard h2,
@@ -826,6 +897,99 @@ canvas {
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .main-content {
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+  }
+
+  #map {
+    flex: 2;
+    height: 500px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    cursor: pointer;
+    min-height: 400px; /* Altura mínima para que siempre sea visible */
+  }
+
+  .dashboard {
+    flex: 1;
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 500px;
+    min-width: 300px;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .controls {
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .search-container {
+      flex: 1 1 100%;
+      min-width: auto;
+    }
+
+    .controls-group {
+      flex: 1 1 100%;
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .main-content {
+      flex-direction: column;
+    }
+
+    #map {
+      height: 400px; /* Altura fija en móviles */
+      flex: none; /* Quita el flex para que no desaparezca */
+      min-height: 350px; /* Altura mínima en móviles */
+    }
+
+    .dashboard {
+      flex: none; /* Quita el flex para que no desaparezca */
+      min-height: auto; /* Altura automática */
+    }
+
+    .controls {
+      gap: 0.5rem;
+    }
+
+    .controls-group {
+      gap: 0.3rem;
+    }
+
+    .controls select {
+      min-width: 80px;
+      font-size: 0.85rem;
+    }
+
+    .controls button {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.6rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    #map {
+      height: 350px; /* Un poco más pequeño en pantallas muy pequeñas */
+      min-height: 300px;
+    }
+
+    .weather-dashboard {
+      padding: 0.5rem;
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .main-content {
     flex-direction: column;
@@ -835,12 +999,22 @@ canvas {
     height: 300px;
   }
 
-  .search-container {
-    min-width: 100%;
-  }
-
   .controls {
     gap: 0.5rem;
+  }
+
+  .controls-group {
+    gap: 0.3rem;
+  }
+
+  .controls select {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+
+  .controls button {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
   }
 }
 
@@ -848,5 +1022,20 @@ button:disabled {
   background: #bdc3c7;
   cursor: not-allowed;
   transform: none;
+}
+
+.chart-container {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 1rem;
+  height: 300px;
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 </style>
