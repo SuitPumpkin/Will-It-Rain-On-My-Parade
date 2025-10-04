@@ -8,8 +8,15 @@
         Ciudad:
         <select v-model="selectedCity">
           <option disabled value="">-- Selecciona una ciudad --</option>
-          <option v-for="(coords, city) in cities" :key="city" :value="city">
-            {{ city }}
+          <option v-for="c in displayedCities" :key="c.city" :value="c.city">
+            {{ c.city }}
+          </option>
+          <option
+            v-if="displayedCities.length < allCities.length"
+            @click="loadMoreCities"
+            disabled
+          >
+            Cargar más...
           </option>
         </select>
       </label>
@@ -45,23 +52,21 @@
 import { ref, onMounted } from "vue";
 import L from "leaflet";
 
-// Importamos las ciudades desde JSON
-import citiesData from "@/datasets/worldcities.json";
-
 // Estado del componente
 const selectedCity = ref("");
 const selectedDate = ref(new Date().toISOString().slice(0, 10));
 const weatherData = ref(null);
+const allCities = ref([]);
+const displayedCities = ref([]);
+const CHUNK_SIZE = 50;
 
-// Convertimos el JSON a un objeto { ciudad: [lat, lng] } para usar en el select y mapa
-const cities = {};
-citiesData.forEach((city) => {
-  const lat = parseFloat(city.lat);
-  const lng = parseFloat(city.lng);
-  if (!isNaN(lat) && !isNaN(lng)) {
-    cities[city.city] = [lat, lng];
-  }
-});
+// Función para cargar más ciudades en el select
+function loadMoreCities() {
+  const current = displayedCities.value.length;
+  displayedCities.value.push(
+    ...allCities.value.slice(current, current + CHUNK_SIZE)
+  );
+}
 
 // Datos falsos de clima
 const mockWeatherData = [
@@ -77,29 +82,21 @@ const mockWeatherData = [
   { temp: 18, feels_like: 17, humidity: 90, description: "Tormenta eléctrica" },
 ];
 
-// Función fake para obtener clima (manteniendo parámetros para futuro backend)
 // eslint-disable-next-line no-unused-vars
-function getFakeWeather(_lat, _lon, _date) {
+function getFakeWeather(lat, lon, date) {
+  // lat, lon y date se mantienen para futura compatibilidad con backend
   const random = Math.floor(Math.random() * mockWeatherData.length);
   return mockWeatherData[random];
 }
 
-// Inicializamos Leaflet
-let map;
-
-onMounted(() => {
-  map = L.map("map").setView([23.6345, -102.5528], 5);
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(map);
-});
-
-// Buscar clima (fake)
+// Buscar clima
 function searchWeather() {
   if (!selectedCity.value) return;
 
-  const coords = cities[selectedCity.value];
+  const city = allCities.value.find((c) => c.city === selectedCity.value);
+  if (!city) return;
+
+  const coords = [city.lat, city.lng];
   map.setView(coords, 10);
 
   const fakeData = getFakeWeather(coords[0], coords[1], selectedDate.value);
@@ -126,6 +123,30 @@ function changeDay(days) {
   date.setDate(date.getDate() + days);
   selectedDate.value = date.toISOString().slice(0, 10);
 }
+
+// Inicializar mapa y cargar ciudades desde public
+let map;
+onMounted(async () => {
+  // Inicializar mapa Leaflet
+  map = L.map("map").setView([23.6345, -102.5528], 5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
+
+  // Cargar JSON de ciudades
+  try {
+    const res = await fetch("/datasets/worldcities.json");
+    const data = await res.json();
+    allCities.value = data.map((c) => ({
+      city: c.city,
+      lat: parseFloat(c.lat),
+      lng: parseFloat(c.lng),
+    }));
+    displayedCities.value = allCities.value.slice(0, CHUNK_SIZE);
+  } catch (err) {
+    console.error("Error al cargar ciudades:", err);
+  }
+});
 </script>
 
 <style scoped>
