@@ -562,8 +562,10 @@ function searchWeather() {
 onMounted(async () => {
   // Inicializar mapa
   map = L.map("map").setView([23.6345, -102.5528], 5);
+
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
 
   // Configurar evento de doble click
@@ -840,5 +842,11 @@ canvas {
   .controls {
     gap: 0.5rem;
   }
+}
+
+button:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+  transform: none;
 }
 </style>
