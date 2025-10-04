@@ -45,18 +45,23 @@
 import { ref, onMounted } from "vue";
 import L from "leaflet";
 
+// Importamos las ciudades desde JSON
+import citiesData from "@/datasets/worldcities.json";
+
+// Estado del componente
 const selectedCity = ref("");
 const selectedDate = ref(new Date().toISOString().slice(0, 10));
 const weatherData = ref(null);
 
-// Lista de ciudades
-const cities = {
-  "Ciudad de México": [19.4326, -99.1332],
-  Guadalajara: [20.6597, -103.3496],
-  Monterrey: [25.6866, -100.3161],
-  Puebla: [19.0413, -98.2062],
-  Cancún: [21.1619, -86.8515],
-};
+// Convertimos el JSON a un objeto { ciudad: [lat, lng] } para usar en el select y mapa
+const cities = {};
+citiesData.forEach((city) => {
+  const lat = parseFloat(city.lat);
+  const lng = parseFloat(city.lng);
+  if (!isNaN(lat) && !isNaN(lng)) {
+    cities[city.city] = [lat, lng];
+  }
+});
 
 // Datos falsos de clima
 const mockWeatherData = [
@@ -72,13 +77,14 @@ const mockWeatherData = [
   { temp: 18, feels_like: 17, humidity: 90, description: "Tormenta eléctrica" },
 ];
 
-// Función fake para obtener clima (manteniendo los parámetros para futuro backend)
-// eslint-disable-next-line
+// Función fake para obtener clima (manteniendo parámetros para futuro backend)
+// eslint-disable-next-line no-unused-vars
 function getFakeWeather(_lat, _lon, _date) {
   const random = Math.floor(Math.random() * mockWeatherData.length);
   return mockWeatherData[random];
 }
 
+// Inicializamos Leaflet
 let map;
 
 onMounted(() => {
@@ -114,7 +120,7 @@ function searchWeather() {
     .openPopup();
 }
 
-// Cambiar de día
+// Cambiar día
 function changeDay(days) {
   const date = new Date(selectedDate.value);
   date.setDate(date.getDate() + days);
