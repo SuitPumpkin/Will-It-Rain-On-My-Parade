@@ -49,7 +49,7 @@ def get_nasa_historical_weather_for_date(lat, lon, target_date):
         rain_prob = min(100, int(20 + precipitation * 10)) if precipitation > 0.1 else 0
         return { "date": target_date.strftime("%Y-%m-%d"), "temp": round((max_temp + min_temp) / 2, 1), "min": round(min_temp, 1), "max": round(max_temp, 1), "rain": round(precipitation, 1), "rainProb": rain_prob, "wind": round(wind_speed, 1), "hourly_data": simulate_hourly_temps(min_temp, max_temp) }
     except (requests.exceptions.RequestException, KeyError) as e:
-        print(f"Error procesando datos de NASA para {date_str}: {e}")
+        print(f"Error processing NASA data for {date_str}: {e}")
         return None
 
 def generate_recommendations(summary):
@@ -81,7 +81,7 @@ async def get_weather_data(lat: float, lon: float, day: int, month: int):
             weather_report = get_nasa_historical_weather_for_date(lat, lon, target_date)
             if weather_report: historical_yearly_data.append(weather_report)
         except ValueError: continue
-    if not historical_yearly_data: return {"error": "No se pudieron obtener datos históricos."}
+    if not historical_yearly_data: return {"error": "Historical data could not be obtained."}
     summary = { "temp": round(sum(d['temp'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "min": round(sum(d['min'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "max": round(sum(d['max'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "rain": round(sum(d['rain'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "rainProb": int(sum(d['rainProb'] for d in historical_yearly_data) / len(historical_yearly_data)), "wind": int(sum(d['wind'] for d in historical_yearly_data) / len(historical_yearly_data)), "hourly_data": historical_yearly_data[0]['hourly_data'], }
     recommendations = generate_recommendations(summary)
     return { "historical_summary": summary, "historical_yearly_data": historical_yearly_data, "recommendations": recommendations, "nearby_locations": [], }
@@ -144,6 +144,6 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         }
 
     except requests.exceptions.RequestException as e:
-        print(f"Error llamando a la API de Open-Meteo: {e}")
-        return {"error": "No se pudo obtener el pronóstico del clima."}
+        print(f"Error calling the Open-Meteo API: {e}")
+        return {"error": "The weather forecast could not be obtained."}
 
