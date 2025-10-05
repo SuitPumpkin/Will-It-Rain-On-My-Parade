@@ -214,7 +214,15 @@ import {
   PointElement,
   LineController,
 } from "chart.js";
-
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
 ChartJS.register(
   Title,
   Tooltip,
@@ -451,9 +459,12 @@ onMounted(async () => {
 
   L.control.scale().addTo(map);
 
+  // REEMPLAZAR la función completa del evento click del mapa:
   map.on("click", (e) => {
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
+
+    console.log("Map clicked at:", lat, lng); // Para debugging
 
     if (!isValidCoordinate(lat, lng)) {
       alert(
@@ -467,15 +478,31 @@ onMounted(async () => {
     searchCity.value = "";
     clearData();
 
-    if (currentMarker) map.removeLayer(currentMarker);
-    currentMarker = L.marker(e.latlng)
-      .addTo(map)
-      .bindPopup(
-        `<b>Selected Coordinates</b><br>Lat: ${lat.toFixed(
-          4
-        )}, Lng: ${lng.toFixed(4)}`
-      )
-      .openPopup();
+    // Remover marcador anterior si existe
+    if (currentMarker) {
+      map.removeLayer(currentMarker);
+      currentMarker = null;
+    }
+
+    try {
+      // Crear nuevo marcador
+      currentMarker = L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup(
+          `<b>Selected Coordinates</b><br>Lat: ${lat.toFixed(
+            4
+          )}, Lng: ${lng.toFixed(4)}`
+        )
+        .openPopup();
+
+      console.log("Marker created successfully"); // Para debugging
+
+      // Mover el mapa al punto clickeado
+      map.setView([lat, lng], map.getZoom());
+    } catch (error) {
+      console.error("Error creating marker:", error);
+      alert("Error creating marker. Please try again.");
+    }
   });
 
   try {
