@@ -30,13 +30,16 @@
       </div>
       <div class="controls-group">
         <button @click="clearPin">Clear pin</button>
-        <select v-model="selectedDay">
-          <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
+        <select v-model="selectedYear">
+          <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
         </select>
         <select v-model="selectedMonth">
           <option v-for="(m, index) in months" :key="index" :value="index">
             {{ m }}
           </option>
+        </select>
+        <select v-model="selectedDay">
+          <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
         </select>
         <button @click="fetchAllWeatherData" :disabled="isLoading">
           {{ isLoading ? "Searching..." : "Get Results" }}
@@ -88,13 +91,13 @@
             :class="{ active: viewMode === 'forecast' }"
             @click="viewMode = 'forecast'"
           >
-            Pronóstico
+            Forecast
           </button>
           <button
             :class="{ active: viewMode === 'historical' }"
             @click="viewMode = 'historical'"
           >
-            Historial
+            Historical
           </button>
         </div>
 
@@ -102,21 +105,21 @@
 
         <div v-if="viewMode === 'forecast' && forecastData && !isLoading">
           <div class="main-day-view">
-            <h3>Clima para {{ forecastData.main_day.date }}</h3>
+            <h3>Weather for {{ forecastData.main_day.date }}</h3>
             <div class="stat">
-              <span>Máx / Mín Temp.</span>
+              <span>Max / Min Temp.</span>
               <span class="value"
                 >{{ forecastData.main_day.max }}° /
                 {{ forecastData.main_day.min }}°C</span
               >
             </div>
             <div class="stat">
-              <span>Rain Prob.</span>
+              <span>Rain Probability</span>
               <span class="value">{{ forecastData.main_day.rainProb }}%</span>
             </div>
           </div>
           <div class="forecast-view">
-            <h4>Next 4 days forecast</h4>
+            <h4>Next 4 Days Forecast</h4>
             <div class="forecast-grid">
               <div
                 class="forecast-card"
@@ -124,7 +127,7 @@
                 :key="day.date"
               >
                 <span class="date">{{
-                  new Date(day.date + "T00:00:00").toLocaleDateString("es-ES", {
+                  new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
                     weekday: "short",
                     day: "numeric",
                   })
@@ -138,20 +141,20 @@
 
         <div v-if="viewMode === 'historical' && weatherData && !isLoading">
           <div class="historical-summary">
-            <h3>historical average (Last 5 years)</h3>
+            <h3>Historical Average (Last 5 Years)</h3>
             <div class="stat">
-              <span>Average temp. (°C)</span
-              ><span class="value">{{ weatherData.temp }}</span>
+              <span>Average Temp. (°C)</span>
+              <span class="value">{{ weatherData.temp }}</span>
             </div>
             <div class="stat">
-              <span>Mín / Máx Temp.</span
-              ><span class="value"
-                >{{ weatherData.min }} / {{ weatherData.max }}</span
+              <span>Min / Max Temp.</span>
+              <span class="value"
+                >{{ weatherData.min }}° / {{ weatherData.max }}°C</span
               >
             </div>
             <div class="stat">
-              <span>Precipitation</span
-              ><span class="value"
+              <span>Precipitation</span>
+              <span class="value"
                 >{{ weatherData.rain }} mm / {{ weatherData.rainProb }}%</span
               >
             </div>
@@ -181,10 +184,10 @@
         </div>
 
         <div v-if="!isLoading && !weatherData && !forecastData" class="no-data">
-          Click somewhere to get the weather info.
+          Click on the map or search for a city to get weather information.
         </div>
 
-        <h3>Temperature chart (24h)</h3>
+        <h3>Temperature Chart (24h)</h3>
         <div class="chart-container"><canvas ref="chartCanvas"></canvas></div>
       </div>
     </div>
@@ -219,8 +222,9 @@ ChartJS.register(
 
 const searchCity = ref("");
 const selectedCity = ref("");
-const selectedDay = ref(new Date().getDate().toString());
+const selectedYear = ref(new Date().getFullYear().toString());
 const selectedMonth = ref(new Date().getMonth().toString());
+const selectedDay = ref(new Date().getDate().toString());
 const clickedCoordinates = ref(null);
 const isLoading = ref(false);
 const viewMode = ref("forecast");
@@ -235,6 +239,10 @@ const hourlyData = ref(
 const allCities = ref([]);
 const showSuggestionsList = ref(false);
 const selectedSuggestionIndex = ref(-1);
+
+// Generate years from current year to 5 years ago
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 6 }, (_, i) => (currentYear - i).toString());
 
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
 const months = [
@@ -257,13 +265,14 @@ let chartInstance = null;
 let map = null;
 let currentMarker = null;
 
-const selectedFullDate = computed(() => {
-  const year = new Date().getFullYear();
-  const month = Number(selectedMonth.value);
-  const day = Number(selectedDay.value);
-  const date = new Date(year, month, day);
-  return date.toISOString().split("T")[0];
-});
+// Función para validar coordenadas
+function isValidCoordinate(lat, lng) {
+  // Coordenadas válidas están entre estos rangos
+  const validLat = lat >= -90 && lat <= 90;
+  const validLng = lng >= -180 && lng <= 180;
+
+  return validLat && validLng;
+}
 
 async function fetchAllWeatherData() {
   let lat, lon;
@@ -272,6 +281,11 @@ async function fetchAllWeatherData() {
     if (city) {
       lat = city.lat;
       lon = city.lng;
+      // Validar coordenadas de la ciudad
+      if (!isValidCoordinate(lat, lon)) {
+        alert("Invalid city coordinates. Please select a different city.");
+        return;
+      }
       map.setView([lat, lon], 10);
     } else {
       alert("City not found.");
@@ -280,8 +294,15 @@ async function fetchAllWeatherData() {
   } else if (clickedCoordinates.value) {
     lat = clickedCoordinates.value.lat;
     lon = clickedCoordinates.value.lng;
+    // Validar coordenadas del click
+    if (!isValidCoordinate(lat, lon)) {
+      alert(
+        "Invalid coordinates. Please click on a valid location on the map."
+      );
+      return;
+    }
   } else {
-    alert("Please, search for a city or click on the map.");
+    alert("Please search for a city or click on the map.");
     return;
   }
 
@@ -291,27 +312,35 @@ async function fetchAllWeatherData() {
   historicalYearlyData.value = [];
   recommendations.value = [];
 
-  const [historicalRes, forecastRes] = await Promise.all([
-    fetch(
-      `http://127.0.0.1:8000/weather?lat=${lat}&lon=${lon}&day=${
-        selectedDay.value
-      }&month=${Number(selectedMonth.value) + 1}`
-    ),
-    fetch(
-      `http://127.0.0.1:8000/forecast?lat=${lat}&lon=${lon}&date=${selectedFullDate.value}`
-    ),
-  ]);
+  // For forecast, use current date; for historical, use selected date
+  const forecastDate = new Date().toISOString().split("T")[0];
 
-  if (historicalRes.ok) {
-    const data = await historicalRes.json();
-    weatherData.value = data.historical_summary;
-    historicalYearlyData.value = data.historical_yearly_data;
-    recommendations.value = data.recommendations;
-  }
+  try {
+    const [historicalRes, forecastRes] = await Promise.all([
+      fetch(
+        `http://127.0.0.1:8000/weather?lat=${lat}&lon=${lon}&day=${
+          selectedDay.value
+        }&month=${Number(selectedMonth.value) + 1}&year=${selectedYear.value}`
+      ),
+      fetch(
+        `http://127.0.0.1:8000/forecast?lat=${lat}&lon=${lon}&date=${forecastDate}`
+      ),
+    ]);
 
-  if (forecastRes.ok) {
-    const data = await forecastRes.json();
-    forecastData.value = data;
+    if (historicalRes.ok) {
+      const data = await historicalRes.json();
+      weatherData.value = data.historical_summary;
+      historicalYearlyData.value = data.historical_yearly_data;
+      recommendations.value = data.recommendations;
+    }
+
+    if (forecastRes.ok) {
+      const data = await forecastRes.json();
+      forecastData.value = data;
+    }
+  } catch (error) {
+    console.error("Error fetching weather data:", error);
+    alert("Error fetching weather data. Please try again.");
   }
 
   updateHourlyDataForChart();
@@ -394,12 +423,40 @@ const selectFirstSuggestion = () => {
 };
 
 onMounted(async () => {
-  map = L.map("map").setView([23.6345, -102.5528], 5);
+  // Configurar el mapa sin wrap-around y con límites mundiales
+  map = L.map("map", {
+    worldCopyJump: false, // Evita saltar entre copias del mundo
+    maxBounds: [
+      [-90, -180], // Esquina suroeste
+      [90, 180], // Esquina noreste
+    ],
+    maxBoundsViscosity: 1.0, // Fuerza los límites estrictamente
+  }).setView([23.6345, -102.5528], 5);
+
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap",
+    noWrap: true, // Evita que los tiles se repitan
+    bounds: [
+      [-90, -180],
+      [90, 180],
+    ],
   }).addTo(map);
 
+  // Agregar control de escala para mejor UX
+  L.control.scale().addTo(map);
+
   map.on("click", (e) => {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    // Validar coordenadas antes de aceptarlas
+    if (!isValidCoordinate(lat, lng)) {
+      alert(
+        "Invalid coordinates. Please click on a valid location on the map."
+      );
+      return;
+    }
+
     clickedCoordinates.value = e.latlng;
     selectedCity.value = "";
     searchCity.value = "";
@@ -409,9 +466,9 @@ onMounted(async () => {
     currentMarker = L.marker(e.latlng)
       .addTo(map)
       .bindPopup(
-        `<b>Coordenadas seleccionadas</b><br>Lat: ${e.latlng.lat.toFixed(
+        `<b>Selected Coordinates</b><br>Lat: ${lat.toFixed(
           4
-        )}, Lng: ${e.latlng.lng.toFixed(4)}`
+        )}, Lng: ${lng.toFixed(4)}`
       )
       .openPopup();
   });
@@ -420,7 +477,7 @@ onMounted(async () => {
     const res = await fetch("/datasets/worldcities.json");
     allCities.value = await res.json();
   } catch (err) {
-    console.error("Error al cargar ciudades:", err);
+    console.error("Error loading cities:", err);
   }
 
   createChart();
@@ -452,7 +509,7 @@ const createChart = () => {
       labels: hourlyData.value.map((d) => d.hour),
       datasets: [
         {
-          label: "Temperatura por hora (°C)",
+          label: "Temperature by hour (°C)",
           data: hourlyData.value.map((d) => d.temp),
           borderColor: "#4a90e2",
           backgroundColor: "rgba(74,144,226,0.2)",
@@ -485,7 +542,7 @@ const hasDataToDownload = computed(() => {
 
 const downloadData = async (format) => {
   if (!hasDataToDownload.value) {
-    alert("No hay datos disponibles para descargar");
+    alert("No data available for download");
     return;
   }
 
@@ -505,8 +562,8 @@ const downloadData = async (format) => {
         break;
     }
   } catch (error) {
-    console.error("Error al descargar:", error);
-    alert("Error al generar el archivo");
+    console.error("Error downloading:", error);
+    alert("Error generating file");
   }
 };
 
@@ -535,7 +592,11 @@ const downloadPDF = async () => {
       )}, ${clickedCoordinates.value.lng.toFixed(4)}`
     );
   }
-  addText(`Date: ${selectedDay.value}/${Number(selectedMonth.value) + 1}`);
+  addText(
+    `Date: ${selectedYear.value}-${String(
+      Number(selectedMonth.value) + 1
+    ).padStart(2, "0")}-${selectedDay.value.padStart(2, "0")}`
+  );
   yPosition += 10;
 
   if (viewMode.value === "forecast" && forecastData.value) {
@@ -611,7 +672,9 @@ const downloadJSON = () => {
             lng: clickedCoordinates.value.lng,
           }
         : null),
-    date: `${selectedDay.value}/${Number(selectedMonth.value) + 1}`,
+    date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+      selectedDay.value
+    }`,
     viewMode: viewMode.value,
     forecastData: forecastData.value,
     historicalData: weatherData.value,
@@ -638,7 +701,7 @@ const downloadJPG = async () => {
     link.download = "weather-chart.jpg";
     link.click();
   } else {
-    alert("No hay gráfico disponible para descargar");
+    alert("No chart available for download");
   }
 };
 </script>
