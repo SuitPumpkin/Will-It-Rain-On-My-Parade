@@ -54,20 +54,20 @@ def get_nasa_historical_weather_for_date(lat, lon, target_date):
 
 def generate_recommendations(summary):
     recs = []
-    if summary['max'] > 28 and summary['rainProb'] > 40: recs.append("🥵💧 Historial de calor y lluvia. Considera ropa ligera e impermeable y mantente bien hidratado.")
-    elif summary['min'] < 10 and summary['rainProb'] > 40: recs.append("🥶💧 Historial de frío y lluvia. Viste por capas con un buen abrigo impermeable.")
+    if summary['max'] > 28 and summary['rainProb'] > 40: recs.append("🥵💧 Heat and rain history. Consider light, waterproof clothing and stay well hydrated.")
+    elif summary['min'] < 10 and summary['rainProb'] > 40: recs.append("🥶💧 History of cold and rain. Dress in layers with a good waterproof coat.")
     is_rain_mentioned = any("lluvia" in rec.lower() for rec in recs)
     if not is_rain_mentioned:
-        if summary['rainProb'] > 60: recs.append("☔ Alta probabilidad de lluvia histórica. ¡No olvides el paraguas!")
-        elif summary['rainProb'] > 30: recs.append("🌦️ Historial de lluvias dispersas. Sería bueno llevar un impermeable.")
-    is_temp_mentioned = any("calor" in rec.lower() or "frío" in rec.lower() for rec in recs)
+        if summary['rainProb'] > 60: recs.append("☔ High probability of historic rainfall. Don't forget your umbrella!")
+        elif summary['rainProb'] > 30: recs.append("🌦️ History of scattered rainfall. It would be a good idea to bring a raincoat.")
+    is_temp_mentioned = any("heat" in rec.lower() or "cold" in rec.lower() for rec in recs)
     if not is_temp_mentioned:
-        if summary['max'] > 30: recs.append("🥵 Día históricamente muy caluroso. Busca la sombra y usa protector solar.")
-        elif summary['min'] < 10: recs.append("🥶 Día históricamente frío. ¡Asegúrate de abrigarte bien!")
+        if summary['max'] > 30: recs.append("🥵 Historically very hot day. Seek shade and use sunscreen.")
+        elif summary['min'] < 10: recs.append("🥶 Historically cold day. Be sure to bundle up!")
     if summary['wind'] > 25:
-        if recs and "frío" in recs[-1]: recs[-1] += " El viento fuerte podría aumentar la sensación de frío."
-        else: recs.append("💨 Viento históricamente fuerte. Ten cuidado con objetos sueltos.")
-    if not recs: recs.append("👍 El clima para esta fecha suele ser agradable, sin condiciones extremas destacables.")
+        if recs and "frío" in recs[-1]: recs[-1] += " Strong winds could make it feel colder."
+        else: recs.append("💨 Historically strong winds. Be careful with loose objects.")
+    if not recs: recs.append("👍 The weather at this time of year is usually pleasant, with no notable extreme conditions.")
     return recs
 
 @app.get("/weather")
