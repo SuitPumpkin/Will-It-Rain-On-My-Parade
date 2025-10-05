@@ -1,6 +1,5 @@
 <template>
   <div class="weather-dashboard">
-    <!-- Controles superiores -->
     <div class="controls">
       <div class="search-container">
         <input
@@ -46,19 +45,18 @@
           </option>
         </select>
 
-        <button @click="searchWeather">Obtener resultados</button>
+        <button @click="searchWeather" :disabled="isLoading">
+          {{ isLoading ? "Buscando..." : "Obtener resultados" }}
+        </button>
       </div>
     </div>
 
     <div class="main-content">
-      <!-- Mapa a la izquierda -->
       <div id="map"></div>
 
-      <!-- Panel derecho -->
       <div class="dashboard">
         <h2>Dashboard de Resultados</h2>
 
-        <!-- Información de coordenadas del doble click -->
         <div v-if="clickedCoordinates" class="coordinates-info">
           <h3>Coordenadas seleccionadas</h3>
           <div class="stat">
@@ -69,39 +67,82 @@
             <span>Longitud</span>
             <span class="value">{{ clickedCoordinates.lng.toFixed(4) }}</span>
           </div>
-          <button @click="getWeatherForCoordinates" class="coords-button">
-            Obtener clima para estas coordenadas
+          <button
+            @click="getWeatherForCoordinates"
+            class="coords-button"
+            :disabled="isLoading"
+          >
+            {{
+              isLoading
+                ? "Obteniendo..."
+                : "Obtener clima para estas coordenadas"
+            }}
           </button>
         </div>
 
-        <div class="stat" v-if="weatherData">
-          <span>Temperatura (°C)</span>
-          <span class="value">{{ weatherData.temp }}</span>
-        </div>
-        <div class="stat" v-if="weatherData">
-          <span>Temperatura mínima / máxima</span>
-          <span class="value"
-            >{{ weatherData.min }} / {{ weatherData.max }}</span
-          >
-        </div>
-        <div class="stat" v-if="weatherData">
-          <span>Precipitación</span>
-          <span class="value"
-            >{{ weatherData.rain }} mm / {{ weatherData.rainProb }}%</span
-          >
-        </div>
-        <div class="stat" v-if="weatherData">
-          <span>Viento (km/h)</span>
-          <span class="value">{{ weatherData.wind }}</span>
+        <div v-if="isLoading" class="loading-indicator">Cargando datos...</div>
+
+        <div v-if="weatherData">
+          <div class="stat">
+            <span>Temp. Promedio (°C)</span>
+            <span class="value">{{ weatherData.temp }}</span>
+          </div>
+          <div class="stat">
+            <span>Temp. Mín / Máx Promedio</span>
+            <span class="value"
+              >{{ weatherData.min }} / {{ weatherData.max }}</span
+            >
+          </div>
+          <div class="stat">
+            <span>Precipitación Promedio</span>
+            <span class="value"
+              >{{ weatherData.rain }} mm / {{ weatherData.rainProb }}%</span
+            >
+          </div>
+          <div class="stat">
+            <span>Viento Promedio (km/h)</span>
+            <span class="value">{{ weatherData.wind }}</span>
+          </div>
         </div>
 
-        <div v-else-if="!clickedCoordinates" class="no-data">
+        <div v-else-if="!clickedCoordinates && !isLoading" class="no-data">
           Selecciona una ubicación para ver los datos meteorológicos
+        </div>
+
+        <div v-if="recommendations.length > 0" class="recommendations">
+          <h3>Recomendaciones</h3>
+          <ul>
+            <li v-for="(rec, index) in recommendations" :key="index">
+              {{ rec }}
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="nearbyWeatherData.length > 0" class="nearby-weather">
+          <h3>Clima en Zonas Cercanas (Actual)</h3>
+          <div class="stat" v-for="loc in nearbyWeatherData" :key="loc.name">
+            <span>{{ loc.name }}</span>
+            <span class="value">{{ loc.temp }}°C / {{ loc.rainProb }}% 💧</span>
+          </div>
         </div>
 
         <h3>Gráficos</h3>
         <div class="chart-container">
           <canvas ref="chartCanvas"></canvas>
+        </div>
+        <div v-if="historicalYearlyData.length > 0" class="historical-data">
+          <h3>Historial (Misma Fecha)</h3>
+          <div
+            class="stat"
+            v-for="record in historicalYearlyData"
+            :key="record.date"
+          >
+            <span>{{ record.date.split("-")[0] }}</span>
+            <span class="value">
+              🌡️ {{ record.max }}° / {{ record.min }}°C &nbsp; 💧
+              {{ record.rainProb }}%
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -109,8 +150,7 @@
 </template>
 
 <script setup>
-// eslint-disable-next-line no-unused-vars
-import { ref, onMounted, watch, computed, nextTick } from "vue";
+import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import L from "leaflet";
 import {
   Chart as ChartJS,
@@ -136,15 +176,18 @@ ChartJS.register(
   LineController
 );
 
-// Estados reactivos
+// --- ESTADOS REACTIVOS ---
+// Cerca de la línea 80
+const recommendations = ref([]);
+const nearbyWeatherData = ref([]);
+const isLoading = ref(false);
+const historicalYearlyData = ref([]); // <-- AÑADE ESTA LÍNEA
 const searchCity = ref("");
 const selectedCity = ref("");
 const selectedDay = ref(new Date().getDate().toString());
 const selectedMonth = ref(new Date().getMonth().toString());
 const weatherData = ref(null);
 const allCities = ref([]);
-// eslint-disable-next-line no-unused-vars
-const displayedCities = ref([]);
 const hourlyData = ref(
   Array.from({ length: 24 }, (_, i) => ({
     hour: `${i}:00`,
@@ -177,21 +220,11 @@ const months = [
   "Diciembre",
 ];
 
-// Computed para fecha seleccionada
-const selectedDate = computed(() => {
-  const year = new Date().getFullYear();
-  return `${year}-${String(Number(selectedMonth.value) + 1).padStart(
-    2,
-    "0"
-  )}-${String(selectedDay.value).padStart(2, "0")}`;
-});
-
 // Computed para ciudades filtradas
 const filteredCities = computed(() => {
   if (!searchCity.value.trim() || searchCity.value.length < 2) {
     return [];
   }
-
   const searchTerm = searchCity.value.toLowerCase();
   return allCities.value
     .filter(
@@ -199,30 +232,143 @@ const filteredCities = computed(() => {
         city.city.toLowerCase().includes(searchTerm) ||
         city.country.toLowerCase().includes(searchTerm)
     )
-    .slice(0, 15); // Limitar a 15 resultados
+    .slice(0, 15);
 });
 
-// Chart.js
+// Chart.js y Mapa
 const chartCanvas = ref(null);
 let chartInstance = null;
 let map = null;
 let currentMarker = null;
-let clickMarker = null; // Marcador para el doble click
+let clickMarker = null;
 
-// Funciones de autocompletado
+// --- FUNCIÓN PARA LLAMAR AL BACKEND ---
+async function fetchWeatherDataFromAPI(lat, lon) {
+  isLoading.value = true;
+  weatherData.value = null;
+  recommendations.value = [];
+  nearbyWeatherData.value = [];
+
+  const month = Number(selectedMonth.value) + 1;
+  const day = selectedDay.value;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/weather?lat=${lat}&lon=${lon}&day=${day}&month=${month}`
+    );
+    if (!response.ok) {
+      throw new Error("Error al obtener los datos del clima");
+    }
+    const data = await response.json();
+
+    weatherData.value = data.historical_summary;
+    hourlyData.value = data.historical_summary.hourly_data || [];
+    recommendations.value = data.recommendations;
+    nearbyWeatherData.value = data.nearby_locations;
+    historicalYearlyData.value = data.historical_yearly_data;
+  } catch (error) {
+    console.error("Falló la llamada a la API:", error);
+    alert(
+      "No se pudieron obtener los datos del clima. Asegúrate de que el backend esté corriendo."
+    );
+    weatherData.value = null;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// --- FUNCIONES PARA OBTENER EL CLIMA ---
+async function getWeatherForCoordinates() {
+  if (!clickedCoordinates.value) return;
+  const { lat, lng } = clickedCoordinates.value;
+
+  if (currentMarker) map.removeLayer(currentMarker);
+
+  await fetchWeatherDataFromAPI(lat, lng);
+
+  if (weatherData.value) {
+    currentMarker = L.marker([lat, lng])
+      .addTo(map)
+      .bindPopup(
+        `
+        <div style="color: #000;">
+          <b>Coordenadas personalizadas</b><br>
+          Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}<br>
+          Temp. Promedio: ${weatherData.value.temp}°C<br>
+          Mín/Máx Promedio: ${weatherData.value.min}°C / ${
+          weatherData.value.max
+        }°C<br>
+          Viento Promedio: ${weatherData.value.wind} km/h
+        </div>
+      `
+      )
+      .openPopup();
+  }
+}
+
+async function searchWeatherWithCity(city) {
+  selectedCity.value = city.city;
+  const coords = [city.lat, city.lng];
+
+  map.setView(coords, 10);
+  clearPin();
+
+  await fetchWeatherDataFromAPI(coords[0], coords[1]);
+
+  if (weatherData.value) {
+    currentMarker = L.marker(coords)
+      .addTo(map)
+      .bindPopup(
+        `
+        <div style="color: #000;">
+          <b>${selectedCity.value}</b><br>
+          Temp. Promedio Hist.: ${weatherData.value.temp}°C<br>
+          Mín/Máx: ${weatherData.value.min}°C / ${weatherData.value.max}°C<br>
+          Viento: ${weatherData.value.wind} km/h
+        </div>
+      `
+      )
+      .openPopup();
+  }
+}
+
+function searchWeather() {
+  if (isLoading.value || !searchCity.value.trim()) return;
+
+  if (selectedCity.value) {
+    const city = allCities.value.find((c) => c.city === selectedCity.value);
+    if (city) {
+      searchWeatherWithCity(city);
+      return;
+    }
+  }
+
+  const city = allCities.value.find(
+    (c) =>
+      c.city.toLowerCase().includes(searchCity.value.toLowerCase()) ||
+      `${c.city}, ${c.country}`
+        .toLowerCase()
+        .includes(searchCity.value.toLowerCase())
+  );
+
+  if (!city) {
+    alert("Ciudad no encontrada. Intenta con otro nombre.");
+    return;
+  }
+  searchWeatherWithCity(city);
+}
+
+// --- FUNCIONES AUXILIARES (Autocompletado, Mapa, Gráfico, etc.) ---
 const onSearchInput = () => {
   showSuggestionsList.value = searchCity.value.length >= 2;
   selectedSuggestionIndex.value = -1;
 };
 
 const showSuggestions = () => {
-  if (searchCity.value.length >= 2) {
-    showSuggestionsList.value = true;
-  }
+  if (searchCity.value.length >= 2) showSuggestionsList.value = true;
 };
 
 const hideSuggestions = () => {
-  // Pequeño delay para permitir el click en las sugerencias
   setTimeout(() => {
     showSuggestionsList.value = false;
     selectedSuggestionIndex.value = -1;
@@ -248,100 +394,38 @@ const selectFirstSuggestion = () => {
   }
 };
 
-// Función para manejar doble click en el mapa
 const setupMapDoubleClick = () => {
   if (!map) return;
-
   map.on("click", (e) => {
     const { lat, lng } = e.latlng;
-
-    // Guardar coordenadas
-    clickedCoordinates.value = {
-      lat: lat,
-      lng: lng,
-    };
-
-    // Limpiar marcador anterior de doble click
-    if (clickMarker) {
-      map.removeLayer(clickMarker);
-    }
-
-    // Crear nuevo marcador en la posición del doble click
+    clickedCoordinates.value = { lat, lng };
+    if (clickMarker) map.removeLayer(clickMarker);
     clickMarker = L.marker([lat, lng])
       .addTo(map)
-      .bindPopup(
-        `
-        <div style="color: #000;">
-          <b>Coordenadas seleccionadas</b><br>
-          Lat: ${lat.toFixed(4)}<br>
-          Lng: ${lng.toFixed(4)}<br>
-          <em>Click para seleccionar</em>
-        </div>
-      `
-      )
+      .bindPopup(`<b>Coordenadas:</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
       .openPopup();
-
-    // Centrar mapa en las coordenadas seleccionadas
     map.setView([lat, lng], map.getZoom());
-
-    // Limpiar búsqueda de ciudad
     searchCity.value = "";
     selectedCity.value = "";
     weatherData.value = null;
+    recommendations.value = [];
+    nearbyWeatherData.value = [];
   });
 };
 
-// Obtener clima para las coordenadas seleccionadas
-const getWeatherForCoordinates = () => {
-  if (!clickedCoordinates.value) return;
-
-  const { lat, lng } = clickedCoordinates.value;
-
-  // Limpiar marcador anterior si existe
-  if (currentMarker) {
-    map.removeLayer(currentMarker);
-  }
-
-  // Obtener datos meteorológicos
-  const fakeData = getFakeWeather(lat, lng, selectedDate.value);
-  weatherData.value = fakeData;
-
-  // Crear marcador para el clima
-  currentMarker = L.marker([lat, lng])
-    .addTo(map)
-    .bindPopup(
-      `
-      <div style="color: #000;">
-        <b>Coordenadas personalizadas</b><br>
-        Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}<br>
-        Temperatura: ${fakeData.temp}°C<br>
-        Mín/Máx: ${fakeData.min}°C / ${fakeData.max}°C<br>
-        Viento: ${fakeData.wind} km/h<br>
-        ${fakeData.description}
-      </div>
-    `
-    )
-    .openPopup();
-};
-
-// Navegación con teclado
 const handleKeydown = (event) => {
   if (!showSuggestionsList.value) return;
-
   switch (event.key) {
     case "ArrowDown":
       event.preventDefault();
       selectedSuggestionIndex.value =
-        selectedSuggestionIndex.value < filteredCities.value.length - 1
-          ? selectedSuggestionIndex.value + 1
-          : 0;
+        (selectedSuggestionIndex.value + 1) % filteredCities.value.length;
       break;
     case "ArrowUp":
       event.preventDefault();
       selectedSuggestionIndex.value =
-        selectedSuggestionIndex.value > 0
-          ? selectedSuggestionIndex.value - 1
-          : filteredCities.value.length - 1;
+        (selectedSuggestionIndex.value - 1 + filteredCities.value.length) %
+        filteredCities.value.length;
       break;
     case "Enter":
       if (selectedSuggestionIndex.value >= 0) {
@@ -356,279 +440,42 @@ const handleKeydown = (event) => {
   }
 };
 
-// Agregar event listener para teclado
-onMounted(() => {
-  document.addEventListener("keydown", handleKeydown);
-});
-
-const createChart = () => {
-  if (chartCanvas.value && ChartJS.registry.getController("line")) {
-    const ctx = chartCanvas.value.getContext("2d");
-
-    if (chartInstance) {
-      chartInstance.destroy();
-    }
-
-    chartInstance = new ChartJS(ctx, {
-      type: "line",
-      data: {
-        labels: hourlyData.value.map((d) => d.hour),
-        datasets: [
-          {
-            label: "Temperatura por hora (°C)",
-            data: hourlyData.value.map((d) => d.temp),
-            borderColor: "#4a90e2",
-            backgroundColor: "rgba(74,144,226,0.2)",
-            fill: true,
-            tension: 0.3,
-            pointBackgroundColor: "#4a90e2",
-            pointBorderColor: "#ffffff",
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: "top",
-            labels: {
-              color: "#f1f5f9",
-              font: {
-                size: 12,
-              },
-            },
-          },
-          tooltip: {
-            backgroundColor: "rgba(30, 41, 59, 0.95)",
-            titleColor: "#f1f5f9",
-            bodyColor: "#f1f5f9",
-            borderColor: "#4a90e2",
-            borderWidth: 1,
-            cornerRadius: 6,
-            displayColors: false,
-            callbacks: {
-              label: function (context) {
-                return `Temperatura: ${context.parsed.y}°C`;
-              },
-            },
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: false,
-            grid: {
-              color: "rgba(255,255,255,0.1)",
-            },
-            ticks: {
-              color: "#f1f5f9",
-              callback: function (value) {
-                return value + "°C";
-              },
-              font: {
-                size: 11,
-              },
-            },
-            title: {
-              display: true,
-              text: "Temperatura (°C)",
-              color: "#f1f5f9",
-              font: {
-                size: 12,
-              },
-            },
-          },
-          x: {
-            grid: {
-              color: "rgba(255,255,255,0.1)",
-            },
-            ticks: {
-              color: "#f1f5f9",
-              maxRotation: 0,
-              font: {
-                size: 11,
-              },
-            },
-            title: {
-              display: true,
-              text: "Hora del día",
-              color: "#f1f5f9",
-              font: {
-                size: 12,
-              },
-            },
-          },
-        },
-        interaction: {
-          intersect: false,
-          mode: "index",
-        },
-        elements: {
-          line: {
-            borderWidth: 2,
-          },
-        },
-      },
-    });
-  }
-};
-
-// Actualizar gráfico
-watch(
-  hourlyData,
-  (newData) => {
-    if (chartInstance && newData) {
-      chartInstance.data.labels = newData.map((d) => d.hour);
-      chartInstance.data.datasets[0].data = newData.map((d) => d.temp);
-      chartInstance.update("active");
-    }
-  },
-  { deep: true }
-);
-
-// Limpiar marcador del mapa
 function clearPin() {
-  if (currentMarker) {
-    map.removeLayer(currentMarker);
-    currentMarker = null;
-  }
-  if (clickMarker) {
-    map.removeLayer(clickMarker);
-    clickMarker = null;
-  }
+  if (currentMarker) map.removeLayer(currentMarker);
+  if (clickMarker) map.removeLayer(clickMarker);
+  currentMarker = null;
+  clickMarker = null;
   weatherData.value = null;
   searchCity.value = "";
   selectedCity.value = "";
   showSuggestionsList.value = false;
   clickedCoordinates.value = null;
-
-  // Resetear datos del gráfico
+  recommendations.value = [];
+  historicalYearlyData.value = [];
+  nearbyWeatherData.value = [];
   hourlyData.value = Array.from({ length: 24 }, (_, i) => ({
     hour: `${i}:00`,
     temp: 0,
   }));
 }
 
-// Generar datos meteorológicos simulados mejorados
-// eslint-disable-next-line no-unused-vars
-function getFakeWeather(lat, lon, date) {
-  const baseTemp = 20 + lat / 10 + Math.sin(lon) * 5;
-  const hourTemps = Array.from({ length: 24 }, (_, i) => {
-    const hourVariation = Math.sin(((i - 6) * Math.PI) / 12) * 8;
-    return (
-      Math.round((baseTemp + hourVariation + (Math.random() * 4 - 2)) * 10) / 10
-    );
-  });
-
-  hourlyData.value = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${i}:00`,
-    temp: hourTemps[i],
-  }));
-
-  return {
-    temp: Math.round(baseTemp),
-    min: Math.min(...hourTemps).toFixed(1),
-    max: Math.max(...hourTemps).toFixed(1),
-    rain: (Math.random() * 20).toFixed(1),
-    rainProb: Math.floor(Math.random() * 100),
-    wind: Math.floor(Math.random() * 50),
-    feels_like: Math.round(baseTemp + 2),
-    humidity: Math.floor(Math.random() * 40) + 40,
-    description: "Soleado con nubes",
-  };
-}
-
-// Buscar clima con ciudad específica
-function searchWeatherWithCity(city) {
-  selectedCity.value = city.city;
-  const coords = [city.lat, city.lng];
-
-  map.setView(coords, 10);
-  clearPin();
-
-  const fakeData = getFakeWeather(coords[0], coords[1], selectedDate.value);
-  weatherData.value = fakeData;
-
-  currentMarker = L.marker(coords)
-    .addTo(map)
-    .bindPopup(
-      `
-      <div style="color: #000;">
-        <b>${selectedCity.value}</b><br>
-        Lat: ${coords[0].toFixed(4)}, Lng: ${coords[1].toFixed(4)}<br>
-        Temperatura: ${fakeData.temp}°C<br>
-        Mín/Máx: ${fakeData.min}°C / ${fakeData.max}°C<br>
-        Viento: ${fakeData.wind} km/h<br>
-        ${fakeData.description}
-      </div>
-    `
-    )
-    .openPopup();
-}
-
-// Buscar clima
-function searchWeather() {
-  if (!searchCity.value.trim()) {
-    alert("Por favor, ingresa una ciudad para buscar");
-    return;
-  }
-
-  // Si hay una ciudad seleccionada de las sugerencias, usarla
-  if (selectedCity.value) {
-    const city = allCities.value.find((c) => c.city === selectedCity.value);
-    if (city) {
-      searchWeatherWithCity(city);
-      return;
-    }
-  }
-
-  // Si no, buscar por texto
-  const city = allCities.value.find(
-    (c) =>
-      c.city.toLowerCase().includes(searchCity.value.toLowerCase()) ||
-      `${c.city}, ${c.country}`
-        .toLowerCase()
-        .includes(searchCity.value.toLowerCase())
-  );
-
-  if (!city) {
-    alert("Ciudad no encontrada. Intenta con otro nombre.");
-    return;
-  }
-
-  searchWeatherWithCity(city);
-}
-
-// Inicializar aplicación
+// --- CICLO DE VIDA Y GRÁFICOS ---
 onMounted(async () => {
-  // Inicializar mapa
-  map = L.map("map").setView([23.6345, -102.5528], 5);
+  document.addEventListener("keydown", handleKeydown);
 
+  map = L.map("map").setView([23.6345, -102.5528], 5);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
 
-  // Configurar evento de doble click
   setupMapDoubleClick();
 
-  // Cargar ciudades
   try {
     const res = await fetch("/datasets/worldcities.json");
-    const data = await res.json();
-    allCities.value = data.map((c) => ({
-      city: c.city,
-      lat: parseFloat(c.lat),
-      lng: parseFloat(c.lng),
-      country: c.country,
-    }));
+    allCities.value = await res.json();
   } catch (err) {
     console.error("Error al cargar ciudades:", err);
-    // Datos de fallback para desarrollo
     allCities.value = [
       {
         city: "Ciudad de México",
@@ -636,43 +483,79 @@ onMounted(async () => {
         lng: -99.1332,
         country: "Mexico",
       },
-      { city: "Madrid", lat: 40.4168, lng: -3.7038, country: "Spain" },
-      {
-        city: "Buenos Aires",
-        lat: -34.6037,
-        lng: -58.3816,
-        country: "Argentina",
-      },
-      { city: "Lima", lat: -12.0464, lng: -77.0428, country: "Peru" },
-      { city: "Bogotá", lat: 4.711, lng: -74.0721, country: "Colombia" },
-      { city: "Santiago", lat: -33.4489, lng: -70.6693, country: "Chile" },
-      {
-        city: "New York",
-        lat: 40.7128,
-        lng: -74.006,
-        country: "United States",
-      },
-      { city: "London", lat: 51.5074, lng: -0.1278, country: "United Kingdom" },
-      { city: "Tokyo", lat: 35.6762, lng: 139.6503, country: "Japan" },
-    ];
+    ]; // Fallback
   }
 
-  setTimeout(() => {
-    createChart();
-  }, 100);
+  createChart();
 });
 
-// Limpiar al desmontar el componente
-import { onUnmounted } from "vue";
 onUnmounted(() => {
   document.removeEventListener("keydown", handleKeydown);
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-  if (map) {
-    map.remove();
-  }
+  if (chartInstance) chartInstance.destroy();
+  if (map) map.remove();
 });
+
+watch(
+  hourlyData,
+  (newData) => {
+    if (chartInstance && newData) {
+      chartInstance.data.labels = newData.map((d) => d.hour);
+      chartInstance.data.datasets[0].data = newData.map((d) => d.temp);
+      chartInstance.update();
+    }
+  },
+  { deep: true }
+);
+
+const createChart = () => {
+  if (!chartCanvas.value) return;
+  const ctx = chartCanvas.value.getContext("2d");
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new ChartJS(ctx, {
+    type: "line",
+    data: {
+      labels: hourlyData.value.map((d) => d.hour),
+      datasets: [
+        {
+          label: "Temperatura por hora (°C)",
+          data: hourlyData.value.map((d) => d.temp),
+          borderColor: "#4a90e2",
+          backgroundColor: "rgba(74,144,226,0.2)",
+          fill: true,
+          tension: 0.3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: { color: "#f1f5f9" },
+        },
+        tooltip: {
+          backgroundColor: "rgba(30, 41, 59, 0.95)",
+          titleColor: "#f1f5f9",
+          bodyColor: "#f1f5f9",
+        },
+      },
+      scales: {
+        y: {
+          grid: { color: "rgba(255,255,255,0.1)" },
+          ticks: { color: "#f1f5f9", callback: (value) => value + "°C" },
+          title: { display: true, text: "Temperatura (°C)", color: "#f1f5f9" },
+        },
+        x: {
+          grid: { color: "rgba(255,255,255,0.1)" },
+          ticks: { color: "#f1f5f9" },
+          title: { display: true, text: "Hora del día", color: "#f1f5f9" },
+        },
+      },
+    },
+  });
+};
 </script>
 
 <style scoped>
@@ -753,6 +636,12 @@ onUnmounted(() => {
 
 .controls button:hover {
   background-color: #0284c7;
+}
+
+.controls button:disabled {
+  background: #475569;
+  cursor: not-allowed;
+  border-color: #334155;
 }
 
 /* Estilos para las sugerencias */
@@ -838,15 +727,21 @@ onUnmounted(() => {
   background-color: #059669;
 }
 
+.coords-button:disabled {
+  background-color: #475569;
+  cursor: not-allowed;
+}
+
 .main-content {
   display: flex;
   gap: 1rem;
   flex: 1;
+  min-height: 500px;
 }
 
 #map {
   flex: 2;
-  height: 500px;
+  height: auto;
   border-radius: 12px;
   border: 1px solid #334155;
   cursor: pointer;
@@ -856,12 +751,13 @@ onUnmounted(() => {
   flex: 1;
   background: #1e293b;
   border-radius: 12px;
-  padding: 1rem;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-height: 500px;
-  min-width: 300px;
+  min-width: 320px;
+  max-width: 450px;
+  overflow-y: auto;
 }
 
 .dashboard h2,
@@ -873,8 +769,13 @@ onUnmounted(() => {
 .stat {
   display: flex;
   justify-content: space-between;
-  padding: 0.5rem 0;
+  padding: 0.75rem 0;
   border-bottom: 1px solid #334155;
+  font-size: 0.95rem;
+}
+
+.stat:last-child {
+  border-bottom: none;
 }
 
 .stat .value {
@@ -889,104 +790,69 @@ onUnmounted(() => {
   padding: 2rem;
 }
 
-canvas {
+.chart-container {
   background: #0f172a;
   border-radius: 8px;
-  height: 200px !important;
-  width: 100% !important;
+  padding: 1rem;
+  position: relative;
+  flex: 1;
+  min-height: 250px;
 }
 
-/* Responsive */
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.loading-indicator {
+  text-align: center;
+  padding: 2rem;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.recommendations,
+.nearby-weather {
+  background-color: #334155;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.recommendations h3,
+.nearby-weather h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  color: #f1f5f9;
+  border-bottom: 1px solid #475569;
+  padding-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.recommendations ul {
+  padding-left: 20px;
+  margin: 0;
+}
+
+.recommendations li {
+  margin-bottom: 0.5rem;
+  color: #cbd5e1;
+}
+
 @media (max-width: 1024px) {
-  .main-content {
-    display: flex;
-    gap: 1rem;
-    flex: 1;
+  .controls {
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 
-  #map {
-    flex: 2;
-    height: 500px;
-    border-radius: 12px;
-    border: 1px solid #334155;
-    cursor: pointer;
-    min-height: 400px; /* Altura mínima para que siempre sea visible */
+  .search-container {
+    flex: 1 1 100%;
+    min-width: auto;
   }
 
-  .dashboard {
-    flex: 1;
-    background: #1e293b;
-    border-radius: 12px;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    min-height: 500px;
-    min-width: 300px;
-  }
-
-  /* Responsive */
-  @media (max-width: 1024px) {
-    .controls {
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-
-    .search-container {
-      flex: 1 1 100%;
-      min-width: auto;
-    }
-
-    .controls-group {
-      flex: 1 1 100%;
-      justify-content: flex-start;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .main-content {
-      flex-direction: column;
-    }
-
-    #map {
-      height: 400px; /* Altura fija en móviles */
-      flex: none; /* Quita el flex para que no desaparezca */
-      min-height: 350px; /* Altura mínima en móviles */
-    }
-
-    .dashboard {
-      flex: none; /* Quita el flex para que no desaparezca */
-      min-height: auto; /* Altura automática */
-    }
-
-    .controls {
-      gap: 0.5rem;
-    }
-
-    .controls-group {
-      gap: 0.3rem;
-    }
-
-    .controls select {
-      min-width: 80px;
-      font-size: 0.85rem;
-    }
-
-    .controls button {
-      font-size: 0.85rem;
-      padding: 0.4rem 0.6rem;
-    }
-  }
-
-  @media (max-width: 480px) {
-    #map {
-      height: 350px; /* Un poco más pequeño en pantallas muy pequeñas */
-      min-height: 300px;
-    }
-
-    .weather-dashboard {
-      padding: 0.5rem;
-    }
+  .controls-group {
+    flex: 1 1 100%;
+    justify-content: flex-start;
   }
 }
 
@@ -994,48 +860,27 @@ canvas {
   .main-content {
     flex-direction: column;
   }
-
   #map {
-    height: 300px;
+    height: 350px;
+    flex-grow: 0;
+  }
+  .dashboard {
+    max-width: 100%;
+  }
+  .historical-data {
+    background-color: #334155;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
   }
 
-  .controls {
-    gap: 0.5rem;
+  .historical-data h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: #f1f5f9;
+    border-bottom: 1px solid #475569;
+    padding-bottom: 0.5rem;
+    font-size: 1.1rem;
   }
-
-  .controls-group {
-    gap: 0.3rem;
-  }
-
-  .controls select {
-    min-width: 80px;
-    font-size: 0.85rem;
-  }
-
-  .controls button {
-    font-size: 0.85rem;
-    padding: 0.4rem 0.6rem;
-  }
-}
-
-button:disabled {
-  background: #bdc3c7;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.chart-container {
-  background: #0f172a;
-  border-radius: 8px;
-  padding: 1rem;
-  height: 300px;
-  position: relative;
-  flex: 1;
-  min-height: 300px;
-}
-
-canvas {
-  width: 100% !important;
-  height: 100% !important;
 }
 </style>
