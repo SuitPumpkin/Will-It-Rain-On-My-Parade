@@ -1,7 +1,7 @@
 <template>
   <div class="weather-dashboard">
     <div class="controls">
-      <div class="search-container">
+      <div class="search-container" data-intro-group="expert">
         <input
           type="text"
           placeholder="Search city..."
@@ -28,7 +28,7 @@
           </div>
         </div>
       </div>
-      <div class="controls-group">
+      <div class="controls-group" data-intro-group="expert">
         <button @click="clearPin">Clear pin</button>
         <select v-model="selectedYear">
           <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
@@ -44,7 +44,7 @@
         <button @click="fetchAllWeatherData" :disabled="isLoading">
           {{ isLoading ? "Searching..." : "Get Results" }}
         </button>
-        <div class="dropdown">
+        <div class="dropdown" data-intro-group="expert">
           <button
             class="download-btn"
             :disabled="!hasDataToDownload || isLoading"
@@ -62,7 +62,7 @@
     </div>
 
     <div class="main-content">
-      <div id="map"></div>
+      <div id="map" data-intro-group="expert"></div>
       <div class="dashboard">
         <h2>Result Dashboard</h2>
         <div v-if="clickedCoordinates" class="coordinates-info">
@@ -86,7 +86,11 @@
           </button>
         </div>
 
-        <div v-if="weatherData || forecastData" class="view-toggle">
+        <div
+          v-if="weatherData || forecastData"
+          class="view-toggle"
+          data-intro-group="expert"
+        >
           <button
             :class="{ active: viewMode === 'forecast' }"
             @click="viewMode = 'forecast'"
@@ -188,7 +192,9 @@
         </div>
 
         <h3>Temperature Chart (24h)</h3>
-        <div class="chart-container"><canvas ref="chartCanvas"></canvas></div>
+        <div class="chart-container" data-intro-group="expert">
+          <canvas ref="chartCanvas"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -240,9 +246,10 @@ const allCities = ref([]);
 const showSuggestionsList = ref(false);
 const selectedSuggestionIndex = ref(-1);
 
-// Generate years from current year to 5 years ago
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 6 }, (_, i) => (currentYear - i).toString());
+const years = Array.from({ length: 16 }, (_, i) =>
+  (currentYear + 5 - i).toString()
+);
 
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
 const months = [
@@ -442,14 +449,12 @@ onMounted(async () => {
     ],
   }).addTo(map);
 
-  // Agregar control de escala para mejor UX
   L.control.scale().addTo(map);
 
   map.on("click", (e) => {
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
 
-    // Validar coordenadas antes de aceptarlas
     if (!isValidCoordinate(lat, lng)) {
       alert(
         "Invalid coordinates. Please click on a valid location on the map."

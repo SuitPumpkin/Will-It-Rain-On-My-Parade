@@ -7,7 +7,7 @@
     </div>
 
     <!-- Search Box -->
-    <div class="simple-search">
+    <div class="simple-search" data-intro-group="simple">
       <div class="search-box">
         <input
           type="text"
@@ -31,14 +31,19 @@
           </div>
         </div>
       </div>
-      <button @click="fetchWeather" :disabled="isLoading" class="search-btn">
+      <button
+        @click="fetchWeather"
+        :disabled="isLoading"
+        class="search-btn"
+        data-intro-group="simple"
+      >
         {{ isLoading ? "🔍 Searching..." : "Check Weather" }}
       </button>
     </div>
 
     <!-- Date Selector -->
-    <div class="date-selector">
-      <label>📅 Which day are you traveling there?</label>
+    <div class="date-selector" data-intro-group="simple">
+      <label>📅 When do you want to know?</label>
       <div class="date-inputs">
         <select v-model="selectedYear">
           <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
@@ -60,7 +65,7 @@
 
     <!-- Map -->
     <div class="simple-map-container">
-      <div id="simple-map"></div>
+      <div id="simple-map" data-intro-group="simple"></div>
       <div class="map-instruction">
         💡 Click anywhere on the map to check weather there!
       </div>
@@ -74,7 +79,11 @@
 
     <!-- Weather Results -->
     <div v-if="weatherResult && !isLoading" class="weather-result">
-      <div class="result-card" :class="getWeatherClass()">
+      <div
+        class="result-card"
+        :class="getWeatherClass()"
+        data-intro-group="simple"
+      >
         <div class="weather-emoji">
           {{ getWeatherEmoji() }}
         </div>
@@ -95,7 +104,11 @@
       </div>
 
       <!-- Forecast for next days -->
-      <div v-if="weatherResult.forecast" class="forecast-simple">
+      <div
+        v-if="weatherResult.forecast"
+        class="forecast-simple"
+        data-intro-group="simple"
+      >
         <h4>Next few days:</h4>
         <div class="forecast-days">
           <div
@@ -136,9 +149,10 @@ const weatherResult = ref(null);
 const allCities = ref([]);
 const showSuggestionsList = ref(false);
 
-// Generate years from current year to 5 years ago
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 6 }, (_, i) => (currentYear - i).toString());
+const years = Array.from({ length: 16 }, (_, i) =>
+  (currentYear + 5 - i).toString()
+);
 
 // Simple month names
 const simpleMonths = [
