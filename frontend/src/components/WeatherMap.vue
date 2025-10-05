@@ -459,7 +459,6 @@ onMounted(async () => {
 
   L.control.scale().addTo(map);
 
-  // REEMPLAZAR la función completa del evento click del mapa:
   map.on("click", (e) => {
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;

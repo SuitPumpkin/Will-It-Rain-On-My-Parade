@@ -217,8 +217,6 @@ async function fetchWeather() {
   weatherResult.value = null;
 
   try {
-    const forecastDate = new Date().toISOString().split("T")[0];
-
     const [historicalRes, forecastRes] = await Promise.all([
       fetch(
         `http://127.0.0.1:8000/weather?lat=${lat}&lon=${lon}&day=${
@@ -226,7 +224,9 @@ async function fetchWeather() {
         }&month=${Number(selectedMonth.value) + 1}&year=${selectedYear.value}`
       ),
       fetch(
-        `http://127.0.0.1:8000/forecast?lat=${lat}&lon=${lon}&date=${forecastDate}`
+        `http://127.0.0.1:8000/forecast?lat=${lat}&lon=${lon}&date=${
+          selectedDay.value
+        }&month=${Number(selectedMonth.value) + 1}&year=${selectedYear.value}`
       ),
     ]);
 
