@@ -320,7 +320,7 @@ async function fetchAllWeatherData() {
   if (currentMarker) map.removeLayer(currentMarker);
   currentMarker = L.marker([lat, lon])
     .addTo(map)
-    .bindPopup(`<b>${selectedCity.value || "Ubicación seleccionada"}</b>`)
+    .bindPopup(`<b>${selectedCity.value || "Selected location"}</b>`)
     .openPopup();
 }
 
