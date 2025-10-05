@@ -49,25 +49,25 @@ def get_nasa_historical_weather_for_date(lat, lon, target_date):
         rain_prob = min(100, int(20 + precipitation * 10)) if precipitation > 0.1 else 0
         return { "date": target_date.strftime("%Y-%m-%d"), "temp": round((max_temp + min_temp) / 2, 1), "min": round(min_temp, 1), "max": round(max_temp, 1), "rain": round(precipitation, 1), "rainProb": rain_prob, "wind": round(wind_speed, 1), "hourly_data": simulate_hourly_temps(min_temp, max_temp) }
     except (requests.exceptions.RequestException, KeyError) as e:
-        print(f"Error procesando datos de NASA para {date_str}: {e}")
+        print(f"Error processing NASA data for {date_str}: {e}")
         return None
 
 def generate_recommendations(summary):
     recs = []
-    if summary['max'] > 28 and summary['rainProb'] > 40: recs.append("🥵💧 Historial de calor y lluvia. Considera ropa ligera e impermeable y mantente bien hidratado.")
-    elif summary['min'] < 10 and summary['rainProb'] > 40: recs.append("🥶💧 Historial de frío y lluvia. Viste por capas con un buen abrigo impermeable.")
+    if summary['max'] > 28 and summary['rainProb'] > 40: recs.append("🥵💧 Heat and rain history. Consider light, waterproof clothing and stay well hydrated.")
+    elif summary['min'] < 10 and summary['rainProb'] > 40: recs.append("🥶💧 History of cold and rain. Dress in layers with a good waterproof coat.")
     is_rain_mentioned = any("lluvia" in rec.lower() for rec in recs)
     if not is_rain_mentioned:
-        if summary['rainProb'] > 60: recs.append("☔ Alta probabilidad de lluvia histórica. ¡No olvides el paraguas!")
-        elif summary['rainProb'] > 30: recs.append("🌦️ Historial de lluvias dispersas. Sería bueno llevar un impermeable.")
-    is_temp_mentioned = any("calor" in rec.lower() or "frío" in rec.lower() for rec in recs)
+        if summary['rainProb'] > 60: recs.append("☔ High probability of historic rainfall. Don't forget your umbrella!")
+        elif summary['rainProb'] > 30: recs.append("🌦️ History of scattered rainfall. It would be a good idea to bring a raincoat.")
+    is_temp_mentioned = any("heat" in rec.lower() or "cold" in rec.lower() for rec in recs)
     if not is_temp_mentioned:
-        if summary['max'] > 30: recs.append("🥵 Día históricamente muy caluroso. Busca la sombra y usa protector solar.")
-        elif summary['min'] < 10: recs.append("🥶 Día históricamente frío. ¡Asegúrate de abrigarte bien!")
+        if summary['max'] > 30: recs.append("🥵 Historically very hot day. Seek shade and use sunscreen.")
+        elif summary['min'] < 10: recs.append("🥶 Historically cold day. Be sure to bundle up!")
     if summary['wind'] > 25:
-        if recs and "frío" in recs[-1]: recs[-1] += " El viento fuerte podría aumentar la sensación de frío."
-        else: recs.append("💨 Viento históricamente fuerte. Ten cuidado con objetos sueltos.")
-    if not recs: recs.append("👍 El clima para esta fecha suele ser agradable, sin condiciones extremas destacables.")
+        if recs and "frío" in recs[-1]: recs[-1] += " Strong winds could make it feel colder."
+        else: recs.append("💨 Historically strong winds. Be careful with loose objects.")
+    if not recs: recs.append("👍 The weather at this time of year is usually pleasant, with no notable extreme conditions.")
     return recs
 
 @app.get("/weather")
@@ -81,7 +81,7 @@ async def get_weather_data(lat: float, lon: float, day: int, month: int):
             weather_report = get_nasa_historical_weather_for_date(lat, lon, target_date)
             if weather_report: historical_yearly_data.append(weather_report)
         except ValueError: continue
-    if not historical_yearly_data: return {"error": "No se pudieron obtener datos históricos."}
+    if not historical_yearly_data: return {"error": "Historical data could not be obtained."}
     summary = { "temp": round(sum(d['temp'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "min": round(sum(d['min'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "max": round(sum(d['max'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "rain": round(sum(d['rain'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "rainProb": int(sum(d['rainProb'] for d in historical_yearly_data) / len(historical_yearly_data)), "wind": int(sum(d['wind'] for d in historical_yearly_data) / len(historical_yearly_data)), "hourly_data": historical_yearly_data[0]['hourly_data'], }
     recommendations = generate_recommendations(summary)
     return { "historical_summary": summary, "historical_yearly_data": historical_yearly_data, "recommendations": recommendations, "nearby_locations": [], }
@@ -144,6 +144,6 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         }
 
     except requests.exceptions.RequestException as e:
-        print(f"Error llamando a la API de Open-Meteo: {e}")
-        return {"error": "No se pudo obtener el pronóstico del clima."}
+        print(f"Error calling the Open-Meteo API: {e}")
+        return {"error": "The weather forecast could not be obtained."}
 
