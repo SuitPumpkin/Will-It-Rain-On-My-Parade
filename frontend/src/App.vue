@@ -2,7 +2,10 @@
   <div class="app">
     <header class="app-header">
       <div class="header-content">
-        <h1 class="app-title">🌤️ Pronostika</h1>
+        <h1 class="app-title">
+          <img :src="logoUrl" alt="Pronostika Logo" class="logo-image" />
+          Pronostika
+        </h1>
         <div class="header-controls">
           <div class="mode-switcher">
             <span class="mode-label">{{
@@ -38,6 +41,8 @@ import WeatherMap from "./components/WeatherMap.vue";
 import WeatherMapSimple from "./components/WeatherMapSimple.vue";
 import introJs from "intro.js";
 import "intro.js/minified/introjs.min.css";
+// eslint-disable-next-line no-unused-vars
+import logoUrl from "@/assets/logo.png";
 
 const isComplexMode = ref(true);
 const weatherMapComponent = ref(null);
@@ -446,6 +451,20 @@ input:checked + .slider:before {
   .tour-btn {
     padding: 6px 12px;
     font-size: 0.8rem;
+  }
+}
+.logo-image {
+  height: 2em;
+  width: auto;
+  vertical-align: middle;
+  margin-right: 0.1rem;
+}
+
+/* Add to your existing responsive styles */
+@media (max-width: 768px) {
+  .logo-image {
+    height: 1.1em;
+    margin-right: 0.25rem;
   }
 }
 </style>

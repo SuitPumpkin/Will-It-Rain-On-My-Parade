@@ -268,18 +268,18 @@ const years = Array.from({ length: 33 }, (_, i) =>
 );
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
 const months = [
-  "January",
-  "February",
-  "March",
-  "April",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
   "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 const chartCanvas = ref(null);
