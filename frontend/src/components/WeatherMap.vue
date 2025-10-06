@@ -385,8 +385,92 @@ async function fetchAllWeatherData() {
       }
     }
   } catch (error) {
-    console.error("Error fetching data:", error);
-    alert("An error occurred while fetching weather data.");
+    // NUEVO: Placeholder si falla la conexión
+    alert(
+      "No se pudo conectar con el backend. Mostrando datos de ejemplo (placeholder)."
+    );
+    viewMode.value = "forecast";
+    forecastData.value = {
+      main_day: {
+        date: selectedFullDate.value,
+        max: 23,
+        min: 13,
+        rainProb: 30,
+      },
+      forecast: [
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 1
+          }`,
+          max: 25,
+          min: 15,
+          rainProb: 45,
+        },
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 2
+          }`,
+          max: 21,
+          min: 12,
+          rainProb: 20,
+        },
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 3
+          }`,
+          max: 19,
+          min: 10,
+          rainProb: 10,
+        },
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 4
+          }`,
+          max: 20,
+          min: 11,
+          rainProb: 15,
+        },
+      ],
+      status: "placeholder",
+      message: "Estos datos son de ejemplo.",
+      hourly_data: Array.from({ length: 24 }, (_, i) => ({
+        hour: `${i}:00`,
+        temp: 15 + Math.round(Math.sin(i / 3) * 5),
+      })),
+    };
+    weatherData.value = {
+      temp: 18,
+      min: 13,
+      max: 23,
+      rain: 2.5,
+      rainProb: 30,
+      hourly_data: Array.from({ length: 24 }, (_, i) => ({
+        hour: `${i}:00`,
+        temp: 15 + Math.round(Math.cos(i / 4) * 4),
+      })),
+    };
+    historicalYearlyData.value = [
+      {
+        date: `${currentYear - 1}-${Number(selectedMonth.value) + 1}-${
+          selectedDay.value
+        }`,
+        max: 22,
+        min: 12,
+        rainProb: 35,
+      },
+      {
+        date: `${currentYear - 2}-${Number(selectedMonth.value) + 1}-${
+          selectedDay.value
+        }`,
+        max: 20,
+        min: 10,
+        rainProb: 25,
+      },
+    ];
+    recommendations.value = [
+      "Estos datos son de ejemplo.",
+      "Conecta el backend para obtener datos reales.",
+    ];
   }
 
   updateHourlyDataForChart();

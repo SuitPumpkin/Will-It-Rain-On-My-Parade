@@ -240,8 +240,59 @@ async function fetchWeather() {
       };
     }
   } catch (error) {
-    console.error("Error fetching weather:", error);
-    alert("Oops! Couldn't get weather info. Please try again.");
+    // NUEVO: Placeholder si falla la conexión
+    alert(
+      "No se pudo conectar con el backend. Mostrando datos de ejemplo (placeholder)."
+    );
+    weatherResult.value = {
+      location: locationName,
+      historical: {
+        date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+          selectedDay.value
+        }`,
+        max: 22,
+        min: 12,
+        rainProb: 35,
+      },
+      forecast: [
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 1
+          }`,
+          max: 24,
+          min: 14,
+          rainProb: 40,
+        },
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 2
+          }`,
+          max: 21,
+          min: 13,
+          rainProb: 20,
+        },
+        {
+          date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+            Number(selectedDay.value) + 3
+          }`,
+          max: 19,
+          min: 11,
+          rainProb: 10,
+        },
+      ],
+      mainDay: {
+        date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+          selectedDay.value
+        }`,
+        max: 22,
+        min: 12,
+        rainProb: 35,
+      },
+      recommendations: [
+        "Maybe it will rain, or not. Connect to backend for real data.",
+        "Maybe it will be sunny, or not. Connect to backend for real data.",
+      ],
+    };
   }
 
   isLoading.value = false;
