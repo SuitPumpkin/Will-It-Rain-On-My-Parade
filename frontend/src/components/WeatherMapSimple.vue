@@ -241,9 +241,7 @@ async function fetchWeather() {
     }
   } catch (error) {
     // NUEVO: Placeholder si falla la conexión
-    alert(
-      "No se pudo conectar con el backend. Mostrando datos de ejemplo (placeholder)."
-    );
+    alert("Unable to connect to the Backend. Showing placeholder data.");
     weatherResult.value = {
       location: locationName,
       historical: {

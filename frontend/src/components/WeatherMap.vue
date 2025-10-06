@@ -386,9 +386,7 @@ async function fetchAllWeatherData() {
     }
   } catch (error) {
     // NUEVO: Placeholder si falla la conexión
-    alert(
-      "No se pudo conectar con el backend. Mostrando datos de ejemplo (placeholder)."
-    );
+    alert("Unable to connect to the Backend. Showing placeholder data.");
     viewMode.value = "forecast";
     forecastData.value = {
       main_day: {
@@ -432,7 +430,7 @@ async function fetchAllWeatherData() {
         },
       ],
       status: "placeholder",
-      message: "Estos datos son de ejemplo.",
+      message: "This are just placeholders (not real data).",
       hourly_data: Array.from({ length: 24 }, (_, i) => ({
         hour: `${i}:00`,
         temp: 15 + Math.round(Math.sin(i / 3) * 5),
@@ -468,8 +466,8 @@ async function fetchAllWeatherData() {
       },
     ];
     recommendations.value = [
-      "Estos datos son de ejemplo.",
-      "Conecta el backend para obtener datos reales.",
+      "Maybe it will rain, or not. Connect to backend for real data.",
+      "Maybe it will be sunny, or not. Connect to backend for real data.",
     ];
   }
 
