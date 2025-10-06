@@ -44,6 +44,20 @@
         <button @click="fetchAllWeatherData" :disabled="isLoading">
           {{ isLoading ? "Searching..." : "Get Results" }}
         </button>
+        <div class="dropdown" data-intro-group="expert">
+          <button
+            class="download-btn"
+            :disabled="!hasDataToDownload || isLoading"
+          >
+            📥 Download
+          </button>
+          <div class="dropdown-content">
+            <a href="#" @click.prevent="downloadData('pdf')">PDF</a>
+            <a href="#" @click.prevent="downloadData('csv')">CSV</a>
+            <a href="#" @click.prevent="downloadData('json')">JSON</a>
+            <a href="#" @click.prevent="downloadData('jpg')">JPG Image</a>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -207,7 +221,15 @@ import {
   PointElement,
   LineController,
 } from "chart.js";
-
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
 ChartJS.register(
   Title,
   Tooltip,
@@ -556,6 +578,174 @@ const createChart = () => {
     },
   });
 };
+const hasDataToDownload = computed(() => {
+  return weatherData.value || forecastData.value;
+});
+
+const downloadData = async (format) => {
+  if (!hasDataToDownload.value) {
+    alert("No data available for download");
+    return;
+  }
+
+  try {
+    switch (format) {
+      case "pdf":
+        await downloadPDF();
+        break;
+      case "csv":
+        downloadCSV();
+        break;
+      case "json":
+        downloadJSON();
+        break;
+      case "jpg":
+        await downloadJPG();
+        break;
+    }
+  } catch (error) {
+    console.error("Error downloading:", error);
+    alert("Error generating file");
+  }
+};
+
+const downloadPDF = async () => {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF();
+
+  let yPosition = 20;
+  const addText = (text, x = 20, fontSize = 12, isBold = false) => {
+    doc.setFontSize(fontSize);
+    doc.setFont(undefined, isBold ? "bold" : "normal");
+    doc.text(text, x, yPosition);
+    yPosition += 10;
+  };
+
+  addText("Weather Report", 20, 16, true);
+  yPosition += 5;
+
+  if (selectedCity.value) {
+    addText(`City: ${selectedCity.value}`);
+  }
+  if (clickedCoordinates.value) {
+    addText(
+      `Coordinates: ${clickedCoordinates.value.lat.toFixed(
+        4
+      )}, ${clickedCoordinates.value.lng.toFixed(4)}`
+    );
+  }
+  addText(
+    `Date: ${selectedYear.value}-${String(
+      Number(selectedMonth.value) + 1
+    ).padStart(2, "0")}-${selectedDay.value.padStart(2, "0")}`
+  );
+  yPosition += 10;
+
+  if (viewMode.value === "forecast" && forecastData.value) {
+    addText("FORECAST DATA", 20, 14, true);
+    addText(`Main Day: ${forecastData.value.main_day.date}`);
+    addText(
+      `Temperature: ${forecastData.value.main_day.max}° / ${forecastData.value.main_day.min}°C`
+    );
+    addText(`Rain Probability: ${forecastData.value.main_day.rainProb}%`);
+    yPosition += 5;
+
+    addText("Next 4 Days:", 20, 12, true);
+    forecastData.value.forecast.forEach((day) => {
+      addText(
+        `${day.date}: ${day.max}°/${day.min}°C, Rain: ${day.rainProb}%`,
+        25
+      );
+    });
+  } else if (viewMode.value === "historical" && weatherData.value) {
+    addText("HISTORICAL DATA", 20, 14, true);
+    addText(`Average Temperature: ${weatherData.value.temp}°C`);
+    addText(`Min/Max: ${weatherData.value.min}° / ${weatherData.value.max}°C`);
+    addText(
+      `Precipitation: ${weatherData.value.rain}mm (${weatherData.value.rainProb}%)`
+    );
+    yPosition += 5;
+
+    if (historicalYearlyData.value.length > 0) {
+      addText("Yearly Details:", 20, 12, true);
+      historicalYearlyData.value.forEach((record) => {
+        addText(
+          `${record.date}: ${record.max}°/${record.min}°C, Rain: ${record.rainProb}%`,
+          25
+        );
+      });
+    }
+  }
+
+  doc.save("weather-report.pdf");
+};
+
+const downloadCSV = () => {
+  let csvContent = "Type,Date,Temperature,Rain Probability,Min Temp,Max Temp\n";
+
+  if (viewMode.value === "forecast" && forecastData.value) {
+    csvContent += `Main Day,${forecastData.value.main_day.date},${forecastData.value.main_day.max}/${forecastData.value.main_day.min},${forecastData.value.main_day.rainProb},,\n`;
+    forecastData.value.forecast.forEach((day) => {
+      csvContent += `Forecast,${day.date},${day.max}/${day.min},${day.rainProb},,\n`;
+    });
+  } else if (viewMode.value === "historical" && weatherData.value) {
+    csvContent += `Historical Average,,${weatherData.value.temp},${weatherData.value.rainProb},${weatherData.value.min},${weatherData.value.max}\n`;
+    historicalYearlyData.value.forEach((record) => {
+      csvContent += `Historical,${record.date},${record.max}/${record.min},${record.rainProb},,\n`;
+    });
+  }
+
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "weather-data.csv";
+  link.click();
+  window.URL.revokeObjectURL(url);
+};
+
+const downloadJSON = () => {
+  const data = {
+    location:
+      selectedCity.value ||
+      (clickedCoordinates.value
+        ? {
+            lat: clickedCoordinates.value.lat,
+            lng: clickedCoordinates.value.lng,
+          }
+        : null),
+    date: `${selectedYear.value}-${Number(selectedMonth.value) + 1}-${
+      selectedDay.value
+    }`,
+    viewMode: viewMode.value,
+    forecastData: forecastData.value,
+    historicalData: weatherData.value,
+    historicalYearlyData: historicalYearlyData.value,
+    recommendations: recommendations.value,
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "weather-data.json";
+  link.click();
+  window.URL.revokeObjectURL(url);
+};
+
+const downloadJPG = async () => {
+  if (chartCanvas.value) {
+    const image = chartCanvas.value.toDataURL("image/jpeg");
+    const link = document.createElement("a");
+    link.href = image;
+    link.download = "weather-chart.jpg";
+    link.click();
+  } else {
+    alert("No chart available for download");
+  }
+};
 </script>
 
 <style scoped>
@@ -781,5 +971,64 @@ h4 {
   .dashboard {
     max-width: 100%;
   }
+}
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.download-btn {
+  background-color: #8b5cf6;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s;
+  height: 100%;
+}
+
+.download-btn:hover:not(:disabled) {
+  background-color: #7c3aed;
+}
+
+.download-btn:disabled {
+  background-color: #475569;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #1e293b;
+  min-width: 120px;
+  box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+  z-index: 1002;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  right: 0;
+}
+
+.dropdown-content a {
+  color: #e2e8f0;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  display: block;
+  border-bottom: 1px solid #334155;
+  transition: background-color 0.2s;
+}
+
+.dropdown-content a:last-child {
+  border-bottom: none;
+}
+
+.dropdown-content a:hover {
+  background-color: #334155;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
 }
 </style>

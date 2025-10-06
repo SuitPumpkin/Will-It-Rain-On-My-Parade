@@ -159,8 +159,8 @@ const allCities = ref([]);
 const showSuggestionsList = ref(false);
 
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 16 }, (_, i) =>
-  (currentYear + 5 - i).toString()
+const years = Array.from({ length: 33 }, (_, i) =>
+  (currentYear + 1 - i).toString()
 );
 
 // Simple month names
