@@ -1,13 +1,11 @@
 <template>
   <div class="weather-simple">
-    <!-- Header Simple -->
     <div class="simple-header">
-      <h1>🌤️ Will It Rain?</h1>
-      <p>Find out if you need an umbrella! ☔</p>
+      <h1>🌤️ Weather Checker</h1>
+      <p>Your simple view for past and future weather! ☔</p>
     </div>
 
-    <!-- Search Box -->
-    <div class="simple-search" data-intro-group="simple">
+    <div class="simple-search">
       <div class="search-box">
         <input
           type="text"
@@ -15,6 +13,8 @@
           v-model="searchCity"
           @input="onSearchInput"
           @keyup.enter="selectFirstSuggestion"
+          @blur="hideSuggestions"
+          @focus="showSuggestions"
         />
         <div
           v-if="showSuggestionsList && filteredCities.length > 0"
@@ -31,19 +31,10 @@
           </div>
         </div>
       </div>
-      <button
-        @click="fetchWeather"
-        :disabled="isLoading"
-        class="search-btn"
-        data-intro-group="simple"
-      >
-        {{ isLoading ? "🔍 Searching..." : "Check Weather" }}
-      </button>
     </div>
 
-    <!-- Date Selector -->
-    <div class="date-selector" data-intro-group="simple">
-      <label>📅 When do you want to know?</label>
+    <div class="date-selector">
+      <label>📅 Select a date</label>
       <div class="date-inputs">
         <select v-model="selectedYear">
           <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
@@ -63,51 +54,49 @@
       </div>
     </div>
 
-    <!-- Map -->
+    <button @click="fetchWeather" :disabled="isLoading" class="search-btn">
+      {{ isLoading ? "🔍 Searching..." : "Check Weather" }}
+    </button>
+
     <div class="simple-map-container">
-      <div id="simple-map" data-intro-group="simple"></div>
-      <div class="map-instruction">
-        💡 Click anywhere on the map to check weather there!
-      </div>
+      <div id="simple-map"></div>
+      <div class="map-instruction">💡 Or click anywhere on the map!</div>
     </div>
 
-    <!-- Loading -->
     <div v-if="isLoading" class="simple-loading">
       <div class="spinner"></div>
-      <p>Checking the weather...</p>
+      <p>Checking the skies...</p>
     </div>
 
-    <!-- Weather Results -->
     <div v-if="weatherResult && !isLoading" class="weather-result">
-      <div
-        class="result-card"
-        :class="getWeatherClass()"
-        data-intro-group="simple"
-      >
+      <div v-if="displayCardData" class="result-card" :class="weatherClass">
         <div class="weather-emoji">
-          {{ getWeatherEmoji() }}
+          {{ weatherEmoji }}
         </div>
         <div class="weather-info">
           <h3>{{ weatherResult.location }}</h3>
+          <h4 class="data-subtitle">{{ dataSubtitle }}</h4>
           <div class="weather-main">
             <div class="temperature">
-              {{ getTemperature() }}
+              {{ temperatureText }}
             </div>
             <div class="rain-info">
-              {{ getRainInfo() }}
+              {{ rainInfoText }}
             </div>
           </div>
-          <div class="recommendation">
-            {{ getRecommendation() }}
+          <div v-if="recommendationText" class="recommendation">
+            {{ recommendationText }}
           </div>
         </div>
       </div>
 
-      <!-- Forecast for next days -->
       <div
-        v-if="weatherResult.forecast"
+        v-if="
+          !isFutureDate &&
+          weatherResult.forecast &&
+          weatherResult.forecast.length > 0
+        "
         class="forecast-simple"
-        data-intro-group="simple"
       >
         <h4>Next few days:</h4>
         <div class="forecast-days">
@@ -125,7 +114,6 @@
       </div>
     </div>
 
-    <!-- No Data Message -->
     <div v-if="!weatherResult && !isLoading" class="no-data-simple">
       <div class="no-data-emoji">🗺️</div>
       <p>Search for a city or click on the map to check the weather!</p>
@@ -136,6 +124,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import L from "leaflet";
+
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -148,7 +137,8 @@ L.Icon.Default.mergeOptions({
 
 const searchCity = ref("");
 const selectedCity = ref("");
-const selectedYear = ref(new Date().getFullYear().toString());
+const currentYear = new Date().getFullYear();
+const selectedYear = ref(currentYear.toString());
 const selectedMonth = ref(new Date().getMonth().toString());
 const selectedDay = ref(new Date().getDate().toString());
 const clickedCoordinates = ref(null);
@@ -158,12 +148,9 @@ const weatherResult = ref(null);
 const allCities = ref([]);
 const showSuggestionsList = ref(false);
 
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 16 }, (_, i) =>
-  (currentYear + 5 - i).toString()
+const years = Array.from({ length: 33 }, (_, i) =>
+  (currentYear + 1 - i).toString()
 );
-
-// Simple month names
 const simpleMonths = [
   "Jan",
   "Feb",
@@ -178,17 +165,13 @@ const simpleMonths = [
   "Nov",
   "Dec",
 ];
-
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
 
 let map = null;
 let currentMarker = null;
 
-// Función para validar coordenadas
 function isValidCoordinate(lat, lng) {
-  const validLat = lat >= -90 && lat <= 90;
-  const validLng = lng >= -180 && lng <= 180;
-  return validLat && validLng;
+  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
 
 async function fetchWeather() {
@@ -200,10 +183,6 @@ async function fetchWeather() {
       lat = city.lat;
       lon = city.lng;
       locationName = `${city.city}, ${city.country}`;
-      if (!isValidCoordinate(lat, lon)) {
-        alert("Invalid city coordinates. Please select a different city.");
-        return;
-      }
       map.setView([lat, lon], 10);
     } else {
       alert("City not found. Please try another one.");
@@ -213,12 +192,13 @@ async function fetchWeather() {
     lat = clickedCoordinates.value.lat;
     lon = clickedCoordinates.value.lng;
     locationName = `Lat: ${lat.toFixed(2)}, Lng: ${lon.toFixed(2)}`;
-    if (!isValidCoordinate(lat, lon)) {
-      alert("Invalid coordinates. Please click on a valid location.");
-      return;
-    }
   } else {
     alert("Please search for a city or click on the map.");
+    return;
+  }
+
+  if (!isValidCoordinate(lat, lon)) {
+    alert("Invalid coordinates selected.");
     return;
   }
 
@@ -226,7 +206,6 @@ async function fetchWeather() {
   weatherResult.value = null;
 
   try {
-    // Formatear la fecha correctamente para el forecast
     const formattedDate = `${selectedYear.value}-${String(
       Number(selectedMonth.value) + 1
     ).padStart(2, "0")}-${String(selectedDay.value).padStart(2, "0")}`;
@@ -242,26 +221,24 @@ async function fetchWeather() {
       ),
     ]);
 
-    let historicalData = null;
-    let forecastData = null;
+    const historicalData = historicalRes.ok ? await historicalRes.json() : null;
+    const forecastData = forecastRes.ok ? await forecastRes.json() : null;
 
-    if (historicalRes.ok) {
-      const data = await historicalRes.json();
-      historicalData = data.historical_summary;
+    if (forecastData?.status === "unavailable") {
+      weatherResult.value = {
+        location: locationName,
+        historical: historicalData?.historical_summary,
+        recommendations: historicalData?.recommendations || [],
+      };
+    } else {
+      weatherResult.value = {
+        location: locationName,
+        historical: historicalData?.historical_summary,
+        forecast: forecastData?.forecast || [],
+        mainDay: forecastData?.main_day,
+        recommendations: historicalData?.recommendations || [],
+      };
     }
-
-    if (forecastRes.ok) {
-      const data = await forecastRes.json();
-      forecastData = data;
-    }
-
-    // Combine data for simple display
-    weatherResult.value = {
-      location: locationName,
-      historical: historicalData,
-      forecast: forecastData?.forecast || [],
-      mainDay: forecastData?.main_day,
-    };
   } catch (error) {
     console.error("Error fetching weather:", error);
     alert("Oops! Couldn't get weather info. Please try again.");
@@ -269,7 +246,6 @@ async function fetchWeather() {
 
   isLoading.value = false;
 
-  // Update map marker
   if (currentMarker) map.removeLayer(currentMarker);
   currentMarker = L.marker([lat, lon])
     .addTo(map)
@@ -277,57 +253,89 @@ async function fetchWeather() {
     .openPopup();
 }
 
-// Helper functions for display
-function getWeatherClass() {
-  if (!weatherResult.value?.mainDay) return "weather-unknown";
+// --- Propiedades Computadas para la Visualización ---
 
-  const rainProb = weatherResult.value.mainDay.rainProb;
+const isFutureDate = computed(() => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const targetDateStr = `${selectedYear.value}-${
+    Number(selectedMonth.value) + 1
+  }-${selectedDay.value}`;
+  const targetDate = new Date(targetDateStr);
+  return targetDate > today;
+});
+
+const displayCardData = computed(() => {
+  if (!weatherResult.value) return null;
+  if (isFutureDate.value) {
+    return weatherResult.value.historical;
+  }
+  return weatherResult.value.mainDay;
+});
+
+const dataSubtitle = computed(() => {
+  if (!displayCardData.value) return "";
+  return isFutureDate.value
+    ? "Based on 5-year historical average"
+    : `Data for ${displayCardData.value.date}`;
+});
+
+const weatherClass = computed(() => {
+  if (!displayCardData.value) return "weather-unknown";
+  const { rainProb } = displayCardData.value;
   if (rainProb > 70) return "weather-rainy";
   if (rainProb > 30) return "weather-cloudy";
   return "weather-sunny";
-}
+});
 
-function getWeatherEmoji() {
-  if (!weatherResult.value?.mainDay) return "❓";
+// --- LÓGICA DE EMOJI CORREGIDA ---
+const weatherEmoji = computed(() => {
+  if (!displayCardData.value) return "❓";
+  const { rainProb, max } = displayCardData.value;
 
-  const rainProb = weatherResult.value.mainDay.rainProb;
   if (rainProb > 70) return "🌧️";
-  if (rainProb > 30) return "🌤️";
+  if (rainProb > 40) return "🌦️";
+
+  // Nueva Lógica: Si hace mucho frío, muestra un emoji de frío.
+  if (max < 5) return "🥶";
+
+  if (rainProb > 20) return "🌤️";
   return "☀️";
-}
+});
 
-function getTemperature() {
-  if (!weatherResult.value?.mainDay) return "--°C";
-  return `${weatherResult.value.mainDay.max}°C / ${weatherResult.value.mainDay.min}°C`;
-}
+const temperatureText = computed(() => {
+  if (!displayCardData.value) return "--° / --°C";
+  return `${displayCardData.value.max}° / ${displayCardData.value.min}°C`;
+});
 
-function getRainInfo() {
-  if (!weatherResult.value?.mainDay) return "No rain data";
-  return `Rain chance: ${weatherResult.value.mainDay.rainProb}%`;
-}
+const rainInfoText = computed(() => {
+  if (!displayCardData.value) return "No data";
+  return `Rain Chance: ${displayCardData.value.rainProb}%`;
+});
 
-function getRecommendation() {
-  if (!weatherResult.value?.mainDay) return "Check back later for updates!";
-
-  const rainProb = weatherResult.value.mainDay.rainProb;
-  if (rainProb > 70) return "🚨 Definitely bring an umbrella! ☔";
-  if (rainProb > 40) return "🤔 You might need an umbrella";
-  if (rainProb > 20) return "🌤️ Probably no umbrella needed";
-  return "😎 Perfect weather! No umbrella needed";
-}
+const recommendationText = computed(() => {
+  return weatherResult.value?.recommendations?.[0] || "Enjoy your day!";
+});
 
 function getDayName(dateString) {
-  const date = new Date(dateString + "T00:00:00");
-  return date.toLocaleDateString("en-US", { weekday: "short" });
+  return new Date(dateString + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "short",
+  });
 }
 
+// --- LÓGICA DE EMOJI CORREGIDA ---
 function getDayEmoji(day) {
   if (day.rainProb > 70) return "🌧️";
-  if (day.rainProb > 40) return "🌤️";
+  if (day.rainProb > 40) return "🌦️";
+
+  // Nueva Lógica: Si hace mucho frío, muestra un emoji de frío.
+  if (day.max < 5) return "🥶";
+
+  if (day.rainProb > 20) return "🌤️";
   return "☀️";
 }
 
-// Search functionality
+// --- Funcionalidad de Búsqueda ---
 const filteredCities = computed(() => {
   if (!searchCity.value.trim() || searchCity.value.length < 2) return [];
   const searchTerm = searchCity.value.toLowerCase();
@@ -348,7 +356,14 @@ const selectCity = (city) => {
 const onSearchInput = () => {
   showSuggestionsList.value = searchCity.value.length >= 2;
 };
-
+const hideSuggestions = () => {
+  setTimeout(() => {
+    showSuggestionsList.value = false;
+  }, 200);
+};
+const showSuggestions = () => {
+  if (searchCity.value.length >= 2) showSuggestionsList.value = true;
+};
 const selectFirstSuggestion = () => {
   if (filteredCities.value.length > 0) {
     selectCity(filteredCities.value[0]);
@@ -356,7 +371,6 @@ const selectFirstSuggestion = () => {
 };
 
 onMounted(async () => {
-  // Simple map setup
   map = L.map("simple-map", {
     worldCopyJump: false,
     maxBounds: [
@@ -369,26 +383,13 @@ onMounted(async () => {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap",
     noWrap: true,
-    bounds: [
-      [-90, -180],
-      [90, 180],
-    ],
   }).addTo(map);
 
   map.on("click", (e) => {
-    const lat = e.latlng.lat;
-    const lng = e.latlng.lng;
-
-    if (!isValidCoordinate(lat, lng)) {
-      alert("Please click on a valid location on the map.");
-      return;
-    }
-
+    if (!isValidCoordinate(e.latlng.lat, e.latlng.lng)) return;
     clickedCoordinates.value = e.latlng;
     selectedCity.value = "";
     searchCity.value = "";
-    weatherResult.value = null;
-
     if (currentMarker) map.removeLayer(currentMarker);
     currentMarker = L.marker(e.latlng)
       .addTo(map)
@@ -407,159 +408,110 @@ onMounted(async () => {
 
 <style scoped>
 .weather-simple {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  min-height: calc(100vh - 120px);
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+  font-family: "Segoe UI", sans-serif;
   background: #0f172a;
   color: #f1f5f9;
+  border-radius: 12px;
 }
-
 .simple-header {
   text-align: center;
   margin-bottom: 30px;
-  color: #f1f5f9;
 }
-
 .simple-header h1 {
   font-size: 2.5em;
   margin: 0;
-  color: #f1f5f9;
 }
-
 .simple-header p {
   font-size: 1.2em;
-  margin: 10px 0 0 0;
+  margin: 10px 0 0;
   color: #94a3b8;
 }
-
 .simple-search {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 250px;
+  min-width: 200px;
 }
-
 .search-box input {
   width: 100%;
-  padding: 15px;
-  border: none;
+  padding: 12px;
+  border: 1px solid #334155;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 1em;
   background: #1e293b;
   color: #f1f5f9;
-  border: 1px solid #334155;
 }
-
-.search-box input::placeholder {
-  color: #64748b;
-}
-
-.search-box input:focus {
-  outline: none;
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
-}
-
 .search-btn {
-  padding: 15px 25px;
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px;
   background: #0ea5e9;
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 1em;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #0ea5e9;
+  transition: all 0.2s ease;
 }
-
 .search-btn:hover:not(:disabled) {
   background: #0284c7;
-  transform: translateY(-1px);
 }
-
 .search-btn:disabled {
   background: #475569;
-  border-color: #475569;
   cursor: not-allowed;
-  transform: none;
 }
-
 .date-selector {
   background: #1e293b;
-  padding: 20px;
+  padding: 15px;
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   border: 1px solid #334155;
 }
-
 .date-selector label {
   display: block;
   margin-bottom: 10px;
   font-weight: 600;
-  color: #f1f5f9;
 }
-
 .date-inputs {
   display: flex;
   gap: 10px;
 }
-
 .date-inputs select {
   flex: 1;
   padding: 10px;
   border: 1px solid #334155;
   border-radius: 6px;
-  font-size: 16px;
+  font-size: 1em;
   background: #0f172a;
   color: #f1f5f9;
-  cursor: pointer;
 }
-
-.date-inputs select:focus {
-  outline: none;
-  border-color: #0ea5e9;
-}
-
-.simple-map-container {
-  position: relative;
-  margin-bottom: 20px;
-}
-
 #simple-map {
-  height: 300px;
+  height: 250px;
   border-radius: 8px;
   border: 1px solid #334155;
+  margin-bottom: 5px;
 }
-
 .map-instruction {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(30, 41, 59, 0.9);
-  padding: 8px 15px;
-  border-radius: 20px;
-  font-size: 14px;
-  color: #cbd5e1;
-  backdrop-filter: blur(10px);
-  border: 1px solid #475569;
+  text-align: center;
+  font-size: 0.9em;
+  color: #94a3b8;
+  margin-bottom: 20px;
 }
-
 .simple-loading {
   text-align: center;
   padding: 40px;
   color: #cbd5e1;
 }
-
 .spinner {
   border: 4px solid rgba(100, 116, 139, 0.3);
   border-radius: 50%;
@@ -567,9 +519,8 @@ onMounted(async () => {
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
+  margin: 0 auto 15px;
 }
-
 @keyframes spin {
   0% {
     transform: rotate(0deg);
@@ -578,165 +529,111 @@ onMounted(async () => {
     transform: rotate(360deg);
   }
 }
-
 .weather-result {
   animation: fadeIn 0.5s ease-in;
 }
-
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-
 .result-card {
   background: #1e293b;
   border-radius: 8px;
-  padding: 30px;
+  padding: 25px;
   margin-bottom: 20px;
-  border: 1px solid #334155;
+  border-left: 5px solid #64748b;
   display: flex;
   align-items: center;
   gap: 20px;
 }
-
 .weather-sunny {
-  border-left: 6px solid #f59e0b;
-}
-
-.weather-cloudy {
-  border-left: 6px solid #94a3b8;
-}
-
-.weather-rainy {
-  border-left: 6px solid #0ea5e9;
-}
-
-.weather-unknown {
-  border-left: 6px solid #64748b;
-}
-
-.weather-emoji {
-  font-size: 4em;
-  flex-shrink: 0;
-}
-
-.weather-info {
-  flex: 1;
-}
-
-.weather-info h3 {
-  margin: 0 0 15px 0;
-  color: #f1f5f9;
-  font-size: 1.5em;
-}
-
-.weather-main {
-  margin-bottom: 15px;
-}
-
-.temperature {
-  font-size: 2em;
-  font-weight: bold;
-  color: #f1f5f9;
-  margin-bottom: 5px;
-}
-
-.rain-info {
-  font-size: 1.2em;
-  color: #cbd5e1;
-}
-
-.recommendation {
-  font-size: 1.1em;
-  font-weight: 600;
-  padding: 10px 15px;
-  background: #334155;
-  border-radius: 6px;
-  color: #f1f5f9;
-  border: 1px solid #475569;
-}
-
-.weather-rainy .recommendation {
-  background: #0c4a6e;
-  border-color: #0ea5e9;
-}
-
-.weather-sunny .recommendation {
-  background: #451a03;
   border-color: #f59e0b;
 }
-
+.weather-cloudy {
+  border-color: #94a3b8;
+}
+.weather-rainy {
+  border-color: #0ea5e9;
+}
+.weather-info h3 {
+  margin: 0 0 5px 0;
+  font-size: 1.4em;
+}
+.weather-info h4.data-subtitle {
+  font-size: 0.9em;
+  color: #94a3b8;
+  margin: 0 0 10px;
+  font-weight: 400;
+}
+.weather-emoji {
+  font-size: 3.5em;
+}
+.temperature {
+  font-size: 1.8em;
+  font-weight: bold;
+}
+.rain-info {
+  font-size: 1.1em;
+  color: #cbd5e1;
+  margin-top: 5px;
+}
+.recommendation {
+  font-size: 1em;
+  font-weight: 500;
+  margin-top: 15px;
+  padding: 10px;
+  background: #334155;
+  border-radius: 6px;
+}
 .forecast-simple {
   background: #1e293b;
   border-radius: 8px;
   padding: 20px;
   border: 1px solid #334155;
 }
-
 .forecast-simple h4 {
   margin: 0 0 15px 0;
-  color: #f1f5f9;
 }
-
 .forecast-days {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
-
 .forecast-day {
   text-align: center;
-  padding: 15px;
+  padding: 10px;
   background: #0f172a;
   border-radius: 6px;
-  border: 1px solid #334155;
 }
-
 .day-name {
   font-weight: bold;
-  margin-bottom: 8px;
-  color: #f1f5f9;
 }
-
 .day-emoji {
-  font-size: 2em;
-  margin-bottom: 8px;
+  font-size: 1.8em;
+  margin: 5px 0;
 }
-
 .day-temp {
   font-weight: bold;
-  margin-bottom: 5px;
-  color: #f1f5f9;
 }
-
 .day-rain {
   font-size: 0.9em;
   color: #94a3b8;
 }
-
 .no-data-simple {
   text-align: center;
   padding: 60px 20px;
   color: #94a3b8;
 }
-
 .no-data-emoji {
   font-size: 4em;
   margin-bottom: 20px;
-  opacity: 0.7;
 }
-
-.no-data-simple p {
-  font-size: 1.2em;
-  margin: 0;
-}
-
 .suggestions {
   position: absolute;
   top: 100%;
@@ -745,67 +642,19 @@ onMounted(async () => {
   background: #1e293b;
   border-radius: 0 0 8px 8px;
   border: 1px solid #334155;
-  border-top: none;
   z-index: 1000;
-  max-height: 200px;
-  overflow-y: auto;
 }
-
 .suggestion-item {
   padding: 12px 15px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   border-bottom: 1px solid #334155;
-  color: #f1f5f9;
 }
-
 .suggestion-item:hover {
   background: #334155;
 }
-
 .suggestion-item:last-child {
   border-bottom: none;
-}
-
-.city-name {
-  font-weight: 600;
-}
-
-.country-name {
-  color: #94a3b8;
-  font-size: 0.9em;
-}
-
-@media (max-width: 768px) {
-  .weather-simple {
-    padding: 15px;
-  }
-
-  .simple-header h1 {
-    font-size: 2em;
-  }
-
-  .simple-search {
-    flex-direction: column;
-  }
-
-  .date-inputs {
-    flex-direction: column;
-  }
-
-  .result-card {
-    flex-direction: column;
-    text-align: center;
-    padding: 20px;
-  }
-
-  .weather-emoji {
-    font-size: 3em;
-  }
-
-  .forecast-days {
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  }
 }
 </style>
