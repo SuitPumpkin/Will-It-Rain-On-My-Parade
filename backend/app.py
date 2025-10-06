@@ -19,8 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Historical
-
+# --- LÓGICA DE LA API DE LA NASA (SIN CAMBIOS) ---
 def simulate_hourly_temps(min_temp, max_temp):
     if min_temp is None or max_temp is None or min_temp == -999 or max_temp == -999:
         return [{"hour": f"{i}:00", "temp": 0} for i in range(24)]
@@ -72,6 +71,7 @@ def generate_recommendations(summary):
 
 @app.get("/weather")
 async def get_weather_data(lat: float, lon: float, day: int, month: int):
+    # ... (este endpoint no cambia)
     current_year = datetime.now().year
     historical_yearly_data = []
     for i in range(1, 6):
@@ -86,14 +86,31 @@ async def get_weather_data(lat: float, lon: float, day: int, month: int):
     recommendations = generate_recommendations(summary)
     return { "historical_summary": summary, "historical_yearly_data": historical_yearly_data, "recommendations": recommendations, "nearby_locations": [], }
 
-# Real Time
+# --- ENDPOINT DE FORECAST MODIFICADO ---
 
 @app.get("/forecast")
 async def get_forecast_data(lat: float, lon: float, date: str):
     """
-    Obtiene el clima para un día específico (pasado o futuro) y un pronóstico de 4 días adicionales.
-    Usa la API de Open-Meteo.
+    Obtiene el clima para un día específico y un pronóstico.
+    Si la fecha es mayor a 10 días en el futuro, devuelve un mensaje especial.
     """
+    
+    # 1. Convertir la fecha de entrada (string) a un objeto datetime
+    target_date = datetime.strptime(date, "%Y-%m-%d")
+    # Obtener la fecha actual (sin la hora, para una comparación justa)
+    today = datetime.now()
+
+    # 2. Calcular la diferencia en días
+    date_difference = target_date - today
+
+    # 3. Comprobar si la fecha es en el futuro y mayor a 10 días
+    if date_difference.days > 10:
+        return {
+            "status": "unavailable",
+            "message": "Pronóstico no disponible para fechas con más de 10 días de antelación. La precisión sería muy baja."
+        }
+
+    # 4. Si la fecha es válida, proceder como antes
     base_url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
@@ -102,7 +119,7 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         "hourly": "temperature_2m,weather_code",
         "timezone": "auto",
         "start_date": date,
-        "end_date": (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=4)).strftime("%Y-%m-%d")
+        "end_date": (target_date + timedelta(days=4)).strftime("%Y-%m-%d")
     }
     
     try:
@@ -111,39 +128,17 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         data = response.json()
 
         daily_data = data['daily']
-        
-        main_day_data = {
-            "date": daily_data['time'][0],
-            "max": daily_data['temperature_2m_max'][0],
-            "min": daily_data['temperature_2m_min'][0],
-            "rainProb": daily_data['precipitation_probability_max'][0],
-            "weatherCode": daily_data['weather_code'][0],
-        }
-        
+        main_day_data = { "date": daily_data['time'][0], "max": daily_data['temperature_2m_max'][0], "min": daily_data['temperature_2m_min'][0], "rainProb": daily_data['precipitation_probability_max'][0], "weatherCode": daily_data['weather_code'][0], }
         forecast_days = []
         for i in range(1, 5):
-             forecast_days.append({
-                "date": daily_data['time'][i],
-                "max": daily_data['temperature_2m_max'][i],
-                "min": daily_data['temperature_2m_min'][i],
-                "rainProb": daily_data['precipitation_probability_max'][i],
-                "weatherCode": daily_data['weather_code'][i],
-             })
+             forecast_days.append({ "date": daily_data['time'][i], "max": daily_data['temperature_2m_max'][i], "min": daily_data['temperature_2m_min'][i], "rainProb": daily_data['precipitation_probability_max'][i], "weatherCode": daily_data['weather_code'][i], })
         hourly_data_response = data['hourly']
         hourly_data = []
         for i in range(24): 
-            hourly_data.append({
-                "hour": hourly_data_response['time'][i].split("T")[1],
-                "temp": hourly_data_response['temperature_2m'][i]
-            })
+            hourly_data.append({ "hour": hourly_data_response['time'][i].split("T")[1], "temp": hourly_data_response['temperature_2m'][i] })
 
-        return {
-            "main_day": main_day_data,
-            "forecast": forecast_days,
-            "hourly_data": hourly_data
-        }
+        return { "main_day": main_day_data, "forecast": forecast_days, "hourly_data": hourly_data }
 
     except requests.exceptions.RequestException as e:
         print(f"Error calling the Open-Meteo API: {e}")
         return {"error": "The weather forecast could not be obtained."}
-
