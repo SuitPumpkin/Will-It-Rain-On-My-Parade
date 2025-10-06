@@ -55,7 +55,7 @@ def generate_recommendations(summary):
     recs = []
     if summary['max'] > 28 and summary['rainProb'] > 40: recs.append("🥵💧 Heat and rain history. Consider light, waterproof clothing and stay well hydrated.")
     elif summary['min'] < 10 and summary['rainProb'] > 40: recs.append("🥶💧 History of cold and rain. Dress in layers with a good waterproof coat.")
-    is_rain_mentioned = any("lluvia" in rec.lower() for rec in recs)
+    is_rain_mentioned = any("rain" in rec.lower() for rec in recs)
     if not is_rain_mentioned:
         if summary['rainProb'] > 60: recs.append("☔ High probability of historic rainfall. Don't forget your umbrella!")
         elif summary['rainProb'] > 30: recs.append("🌦️ History of scattered rainfall. It would be a good idea to bring a raincoat.")
@@ -64,62 +64,56 @@ def generate_recommendations(summary):
         if summary['max'] > 30: recs.append("🥵 Historically very hot day. Seek shade and use sunscreen.")
         elif summary['min'] < 10: recs.append("🥶 Historically cold day. Be sure to bundle up!")
     if summary['wind'] > 25:
-        if recs and "frío" in recs[-1]: recs[-1] += " Strong winds could make it feel colder."
+        if recs and "cold" in recs[-1]: recs[-1] += " Strong winds could make it feel colder."
         else: recs.append("💨 Historically strong winds. Be careful with loose objects.")
     if not recs: recs.append("👍 The weather at this time of year is usually pleasant, with no notable extreme conditions.")
     return recs
 
 @app.get("/weather")
-async def get_weather_data(lat: float, lon: float, day: int, month: int):
-    # ... (este endpoint no cambia)
-    current_year = datetime.now().year
+async def get_weather_data(lat: float, lon: float, day: int, month: int, year: int):
     historical_yearly_data = []
     for i in range(1, 6):
-        year = current_year - i
+        target_year = year - i
         try:
-            target_date = datetime(year, month, day)
+            target_date = datetime(target_year, month, day)
             weather_report = get_nasa_historical_weather_for_date(lat, lon, target_date)
             if weather_report: historical_yearly_data.append(weather_report)
         except ValueError: continue
     if not historical_yearly_data: return {"error": "Historical data could not be obtained."}
     summary = { "temp": round(sum(d['temp'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "min": round(sum(d['min'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "max": round(sum(d['max'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "rain": round(sum(d['rain'] for d in historical_yearly_data) / len(historical_yearly_data), 1), "rainProb": int(sum(d['rainProb'] for d in historical_yearly_data) / len(historical_yearly_data)), "wind": int(sum(d['wind'] for d in historical_yearly_data) / len(historical_yearly_data)), "hourly_data": historical_yearly_data[0]['hourly_data'], }
     recommendations = generate_recommendations(summary)
-    return { "historical_summary": summary, "historical_yearly_data": historical_yearly_data, "recommendations": recommendations, "nearby_locations": [], }
+    return { "historical_summary": summary, "historical_yearly_data": historical_yearly_data, "recommendations": recommendations }
 
-# --- ENDPOINT DE FORECAST MODIFICADO ---
-
+# --- ENDPOINT DE FORECAST CON LÓGICA DE API DUAL ---
 @app.get("/forecast")
 async def get_forecast_data(lat: float, lon: float, date: str):
-    """
-    Obtiene el clima para un día específico y un pronóstico.
-    Si la fecha es mayor a 10 días en el futuro, devuelve un mensaje especial.
-    """
-    
-    # 1. Convertir la fecha de entrada (string) a un objeto datetime
     target_date = datetime.strptime(date, "%Y-%m-%d")
-    # Obtener la fecha actual (sin la hora, para una comparación justa)
     today = datetime.now()
 
-    # 2. Calcular la diferencia en días
-    date_difference = target_date - today
+    if (target_date - today).days > 10:
+        return {"status": "unavailable", "message": "Forecast not available for dates more than 10 days in advance."}
 
-    # 3. Comprobar si la fecha es en el futuro y mayor a 10 días
-    if date_difference.days > 10:
-        return {
-            "status": "unavailable",
-            "message": "Pronóstico no disponible para fechas con más de 10 días de antelación. La precisión sería muy baja."
-        }
+    is_past_date = target_date < today
+    diff_days = (today - target_date).days if is_past_date else -1
 
-    # 4. Si la fecha es válida, proceder como antes
-    base_url = "https://api.open-meteo.com/v1/forecast"
+    # --- LÓGICA CORREGIDA ---
+    # 1. Elige la API y los parámetros correctos según la fecha
+    if is_past_date and diff_days > 90:
+        base_url = "https://archive-api.open-meteo.com/v1/archive"
+        end_date_str = date
+        # Para fechas antiguas, pedimos 'precipitation_sum'
+        daily_params_str = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum"
+    else:
+        base_url = "https://api.open-meteo.com/v1/forecast"
+        end_date_str = (target_date + timedelta(days=4)).strftime("%Y-%m-%d")
+        # Para fechas recientes, pedimos 'precipitation_probability_max'
+        daily_params_str = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+
     params = {
-        "latitude": lat,
-        "longitude": lon,
-        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
-        "hourly": "temperature_2m,weather_code",
-        "timezone": "auto",
-        "start_date": date,
-        "end_date": (target_date + timedelta(days=4)).strftime("%Y-%m-%d")
+        "latitude": lat, "longitude": lon,
+        "daily": daily_params_str,
+        "hourly": "temperature_2m,weather_code", "timezone": "auto", "start_date": date,
+        "end_date": end_date_str
     }
     
     try:
@@ -128,15 +122,31 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         data = response.json()
 
         daily_data = data['daily']
-        main_day_data = { "date": daily_data['time'][0], "max": daily_data['temperature_2m_max'][0], "min": daily_data['temperature_2m_min'][0], "rainProb": daily_data['precipitation_probability_max'][0], "weatherCode": daily_data['weather_code'][0], }
+        
+        # --- LÓGICA CORREGIDA ---
+        # 2. Determina la probabilidad de lluvia según los datos recibidos
+        rain_prob = 0
+        if "precipitation_probability_max" in daily_data:
+            rain_prob = daily_data['precipitation_probability_max'][0]
+        elif "precipitation_sum" in daily_data:
+            precipitation_sum = daily_data['precipitation_sum'][0]
+            if precipitation_sum is not None and precipitation_sum > 0.1:
+                rain_prob = min(100, int(20 + precipitation_sum * 10))
+
+        main_day_data = { "date": daily_data['time'][0], "max": daily_data['temperature_2m_max'][0], "min": daily_data['temperature_2m_min'][0], "rainProb": rain_prob, "weatherCode": daily_data['weather_code'][0], }
+        
         forecast_days = []
-        for i in range(1, 5):
-             forecast_days.append({ "date": daily_data['time'][i], "max": daily_data['temperature_2m_max'][i], "min": daily_data['temperature_2m_min'][i], "rainProb": daily_data['precipitation_probability_max'][i], "weatherCode": daily_data['weather_code'][i], })
+        if len(daily_data['time']) > 1:
+            for i in range(1, len(daily_data['time'])):
+                 # También se debe calcular aquí para los días de pronóstico
+                 prob_forecast = daily_data['precipitation_probability_max'][i]
+                 forecast_days.append({ "date": daily_data['time'][i], "max": daily_data['temperature_2m_max'][i], "min": daily_data['temperature_2m_min'][i], "rainProb": prob_forecast, "weatherCode": daily_data['weather_code'][i], })
+
         hourly_data_response = data['hourly']
         hourly_data = []
         for i in range(24): 
             hourly_data.append({ "hour": hourly_data_response['time'][i].split("T")[1], "temp": hourly_data_response['temperature_2m'][i] })
-
+        
         return { "main_day": main_day_data, "forecast": forecast_days, "hourly_data": hourly_data }
 
     except requests.exceptions.RequestException as e:
