@@ -18,8 +18,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# --- LÓGICA DE LA API DE LA NASA (SIN CAMBIOS) ---
 def simulate_hourly_temps(min_temp, max_temp):
     if min_temp is None or max_temp is None or min_temp == -999 or max_temp == -999:
         return [{"hour": f"{i}:00", "temp": 0} for i in range(24)]
@@ -84,7 +82,6 @@ async def get_weather_data(lat: float, lon: float, day: int, month: int, year: i
     recommendations = generate_recommendations(summary)
     return { "historical_summary": summary, "historical_yearly_data": historical_yearly_data, "recommendations": recommendations }
 
-# --- ENDPOINT DE FORECAST CON LÓGICA DE API DUAL ---
 @app.get("/forecast")
 async def get_forecast_data(lat: float, lon: float, date: str):
     target_date = datetime.strptime(date, "%Y-%m-%d")
@@ -96,8 +93,7 @@ async def get_forecast_data(lat: float, lon: float, date: str):
     is_past_date = target_date < today
     diff_days = (today - target_date).days if is_past_date else -1
 
-    # --- LÓGICA CORREGIDA ---
-    # 1. Elige la API y los parámetros correctos según la fecha
+    # Choose of API
     if is_past_date and diff_days > 90:
         base_url = "https://archive-api.open-meteo.com/v1/archive"
         end_date_str = date
@@ -122,9 +118,7 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         data = response.json()
 
         daily_data = data['daily']
-        
-        # --- LÓGICA CORREGIDA ---
-        # 2. Determina la probabilidad de lluvia según los datos recibidos
+        #Rain Prob.
         rain_prob = 0
         if "precipitation_probability_max" in daily_data:
             rain_prob = daily_data['precipitation_probability_max'][0]
@@ -138,7 +132,6 @@ async def get_forecast_data(lat: float, lon: float, date: str):
         forecast_days = []
         if len(daily_data['time']) > 1:
             for i in range(1, len(daily_data['time'])):
-                 # También se debe calcular aquí para los días de pronóstico
                  prob_forecast = daily_data['precipitation_probability_max'][i]
                  forecast_days.append({ "date": daily_data['time'][i], "max": daily_data['temperature_2m_max'][i], "min": daily_data['temperature_2m_min'][i], "rainProb": prob_forecast, "weatherCode": daily_data['weather_code'][i], })
 
