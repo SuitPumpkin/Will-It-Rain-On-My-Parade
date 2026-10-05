@@ -7,151 +7,97 @@
           Pronostika
         </h1>
         <div class="header-controls">
-          <div class="mode-switcher">
-            <span class="mode-label">{{
-              isComplexMode ? "Deep Dive" : "Quick look"
-            }}</span>
-            <label class="switch">
-              <input type="checkbox" v-model="isComplexMode" />
-              <span class="slider"></span>
-            </label>
-          </div>
           <button @click="startTour" class="tour-btn" title="Take a tour">
-            🚀 Guide
+            <span class="tour-btn-icon">🚀</span>
+            <span class="tour-btn-text">Guide</span>
           </button>
         </div>
       </div>
       <p class="app-subtitle">
-        {{
-          isComplexMode
-            ? "Advanced Weather Analytics & Forecasting"
-            : "Simple weather checking for everyone!"
-        }}
+        Search a location, see the essentials first, and explore the details
+        when you need them.
       </p>
     </header>
 
-    <WeatherMap v-if="isComplexMode" ref="weatherMapComponent" />
-    <WeatherMapSimple v-else ref="weatherMapSimpleComponent" />
+    <WeatherMap ref="weatherMapComponent" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, nextTick } from "vue";
 import WeatherMap from "./components/WeatherMap.vue";
-import WeatherMapSimple from "./components/WeatherMapSimple.vue";
 import introJs from "intro.js";
 import "intro.js/minified/introjs.min.css";
 // eslint-disable-next-line no-unused-vars
 import logoUrl from "@/assets/logo.png";
 
-const isComplexMode = ref(true);
 const weatherMapComponent = ref(null);
-const weatherMapSimpleComponent = ref(null);
 
-// Tour steps for both modes
-const expertTourSteps = [
+const tourSteps = [
+  {
+    element: ".topbar-brand",
+    title: "🌍 Welcome to Pronostika",
+    intro:
+      "Your smart weather companion. Search any location worldwide and get instant forecasts or historical averages.",
+    position: "right",
+  },
   {
     element: ".search-container",
     title: "🔍 Search Cities",
-    intro: "Search for any city worldwide to get weather information.",
+    intro:
+      "Type any city or country name. Suggestions appear as you type — press Enter or click to select.",
     position: "bottom",
   },
   {
-    element: ".controls-group",
-    title: "📅 Date Selection",
+    element: ".filters-toggle",
+    title: "📅 Plan Your Date",
     intro:
-      "Select the year, month, and day for historical weather data analysis.",
+      "Open the planning tools to pick a specific date, clear your pin, or check weather up to 2 years ahead.",
     position: "bottom",
   },
   {
     element: ".download-btn",
-    title: "💾 Download Data",
-    intro: "Export weather data in multiple formats: PDF, CSV, JSON, or JPG.",
+    title: "💾 Export Your Data",
+    intro:
+      "Download weather reports as PDF, CSV, JSON, or save the temperature chart as a JPG image.",
     position: "left",
   },
   {
     element: "#map",
     title: "🗺️ Interactive Map",
     intro:
-      "Click anywhere on the map to get weather data for specific coordinates.",
+      "Click anywhere on the map to drop a pin and get weather for those exact coordinates.",
+    position: "top",
+  },
+  {
+    element: ".dashboard-handle",
+    title: "📊 Weather Dashboard",
+    intro:
+      "This expandable dock shows your weather summary, detailed forecasts, historical averages, and a 24-hour temperature chart. Click 'Details' to expand!",
     position: "top",
   },
   {
     element: ".view-toggle",
-    title: "📊 Data Views",
+    title: "🔄 Forecast vs Historical",
     intro:
-      "Switch between Forecast (future predictions) and Historical (past data) views.",
+      "Toggle between future predictions (Forecast) and past 5-year averages (Historical) for any date.",
     position: "left",
   },
   {
     element: ".chart-container",
-    title: "📈 Temperature Chart",
-    intro: "Visualize 24-hour temperature trends with this interactive chart.",
-    position: "top",
-  },
-  {
-    element: ".mode-switcher",
-    title: "🎛️ Mode Switch",
+    title: "📈 24-Hour Temperature Chart",
     intro:
-      "Toggle between Expert Mode (advanced features) and Simple Mode (easy-to-use interface).",
-    position: "left",
-  },
-];
-
-const simpleTourSteps = [
-  {
-    element: ".simple-search",
-    title: "🔍 Easy Search",
-    intro: "Type a city name to find weather information quickly.",
-    position: "bottom",
-  },
-  {
-    element: ".date-selector",
-    title: "📅 Select Date",
-    intro: "Choose when you want to check the weather.",
-    position: "bottom",
-  },
-  {
-    element: "#simple-map",
-    title: "🗺️ Click the Map",
-    intro: "Click anywhere on the map to check weather for that location!",
+      "Visualize hourly temperature trends. The chart updates automatically when you switch views.",
     position: "top",
-  },
-  {
-    element: ".search-btn",
-    title: "🌤️ Get Weather",
-    intro: "Click here to check if you need an umbrella!",
-    position: "left",
-  },
-  {
-    element: ".result-card",
-    title: "📋 Weather Results",
-    intro:
-      "See clear weather information with easy-to-understand recommendations.",
-    position: "top",
-  },
-  {
-    element: ".forecast-simple",
-    title: "📅 Next Days",
-    intro: "Check the weather forecast for the next few days.",
-    position: "top",
-  },
-  {
-    element: ".mode-switcher",
-    title: "🔄 Switch Modes",
-    intro: "Try Expert Mode for more detailed weather analysis!",
-    position: "left",
   },
 ];
 
 const startTour = async () => {
   await nextTick(); // Wait for DOM update
 
-  const steps = isComplexMode.value ? expertTourSteps : simpleTourSteps;
-
   const intro = introJs();
   intro.setOptions({
-    steps: steps,
+    steps: tourSteps,
     showProgress: true,
     showBullets: true,
     exitOnOverlayClick: true,
@@ -161,25 +107,71 @@ const startTour = async () => {
     skipLabel: "Skip",
     doneLabel: "Finish",
     tooltipPosition: "auto",
-    overlayOpacity: 0.7,
+    overlayOpacity: 0.75,
     positionPrecedence: ["bottom", "top", "left", "right"],
+    scrollToElement: true,
+    disableInteraction: false,
   });
 
-  // Add custom styling
-  intro.onbeforechange(() => {
+  // Custom styling and animations
+  intro.onbeforechange((targetElement) => {
     const tooltip = document.querySelector(".introjs-tooltip");
     if (tooltip) {
-      tooltip.style.backgroundColor = "#1e293b";
-      tooltip.style.border = "2px solid #334155";
-      tooltip.style.borderRadius = "8px";
+      tooltip.style.backgroundColor = "#0f172a";
+      tooltip.style.border = "2px solid #22d3ee";
+      tooltip.style.borderRadius = "12px";
+      tooltip.style.boxShadow =
+        "0 20px 50px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(34, 211, 228, 0.1)";
+      tooltip.style.animation = "introjs-fade-in 0.3s ease-out";
     }
 
     const buttons = document.querySelectorAll(".introjs-button");
     buttons.forEach((button) => {
-      button.style.background = "#0ea5e9";
+      button.style.background = "linear-gradient(135deg, #0ea5e9, #06b6d4)";
       button.style.color = "white";
       button.style.border = "none";
-      button.style.borderRadius = "4px";
+      button.style.borderRadius = "8px";
+      button.style.padding = "10px 20px";
+      button.style.fontWeight = "600";
+      button.style.transition = "all 0.2s ease";
+      button.style.boxShadow = "0 4px 14px rgba(14, 165, 233, 0.4)";
+    });
+
+    const skipButton = document.querySelector(".introjs-skipbutton");
+    if (skipButton) {
+      skipButton.style.background = "transparent";
+      skipButton.style.color = "#94a3b8";
+      skipButton.style.border = "1px solid #334155";
+    }
+
+    const prevButton = document.querySelector(".introjs-prevbutton");
+    if (prevButton) {
+      prevButton.style.background = "#334155";
+      prevButton.style.boxShadow = "none";
+    }
+
+    // Highlight the target element
+    if (targetElement) {
+      targetElement.style.boxShadow =
+        "0 0 0 4px rgba(34, 211, 228, 0.5), 0 8px 32px rgba(2, 6, 23, 0.4)";
+      targetElement.style.transition = "box-shadow 0.3s ease";
+    }
+  });
+
+  intro.oncomplete(() => {
+    // Clean up highlights
+    // eslint-disable-next-line prettier/prettier
+    document.querySelectorAll('[style*="rgba(34, 211, 228"]').forEach((el) => {
+      el.style.boxShadow = "";
+      el.style.transition = "";
+    });
+  });
+
+  intro.onexit(() => {
+    // eslint-disable-next-line prettier/prettier
+    document.querySelectorAll('[style*="rgba(34, 211, 228"]').forEach((el) => {
+      el.style.boxShadow = "";
+      el.style.transition = "";
     });
   });
 
@@ -193,7 +185,7 @@ onMounted(() => {
     setTimeout(() => {
       startTour();
       localStorage.setItem("pronostika_tour_taken", "true");
-    }, 1000);
+    }, 1500);
   }
 });
 </script>
@@ -206,15 +198,23 @@ onMounted(() => {
 }
 
 .app {
+  height: 100dvh;
   min-height: 100vh;
   background: #0f172a;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
 }
 
 .app-header {
-  background: #1e293b;
-  padding: 1rem;
-  border-bottom: 1px solid #334155;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1100;
+  padding: 0.8rem clamp(1rem, 3vw, 2rem);
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.92),
+    rgba(15, 23, 42, 0)
+  );
 }
 
 .header-content {
@@ -239,167 +239,201 @@ onMounted(() => {
 }
 
 .app-subtitle {
-  color: #94a3b8;
-  text-align: center;
-  margin-top: 0.5rem;
-  font-size: 1rem;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
+  display: none;
 }
 
-/* Mode Switcher Styles */
-.mode-switcher {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(30, 41, 59, 0.8);
-  padding: 8px 16px;
-  border-radius: 25px;
-  border: 1px solid #475569;
-}
-
-.mode-label {
-  color: #e2e8f0;
-  font-size: 0.9rem;
-  font-weight: 500;
+.header-badge {
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 /* Tour Button */
 .tour-btn {
-  background: #8b5cf6;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 25px;
+  padding: 10px 20px;
+  border-radius: 999px;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid #8b5cf6;
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
 .tour-btn:hover {
-  background: #7c3aed;
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
 }
 
-/* Switch styles */
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 22px;
+.tour-btn:active {
+  transform: translateY(0);
 }
 
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+.tour-btn-icon {
+  animation: pulse 2s infinite;
 }
 
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #475569;
-  transition: 0.3s;
-  border-radius: 22px;
-}
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
-  border-radius: 50%;
-}
-
-input:checked + .slider {
-  background-color: #0ea5e9;
-}
-
-input:checked + .slider:before {
-  transform: translateX(22px);
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 /* Custom Intro.js styling */
 .introjs-tooltip {
-  background: #1e293b !important;
-  border: 2px solid #334155 !important;
-  border-radius: 8px !important;
+  background: #0f172a !important;
+  border: 2px solid #22d3ee !important;
+  border-radius: 12px !important;
   color: #f1f5f9 !important;
+  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(34, 211, 228, 0.1) !important;
+  animation: introjs-fade-in 0.3s ease-out !important;
+}
+
+@keyframes introjs-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .introjs-tooltip-title {
-  color: #0ea5e9 !important;
-  font-weight: 600 !important;
+  color: #22d3ee !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid rgba(34, 211, 228, 0.2) !important;
+  margin-bottom: 8px !important;
 }
 
 .introjs-tooltiptext {
   color: #cbd5e1 !important;
+  line-height: 1.6 !important;
+  font-size: 0.9rem !important;
 }
 
 .introjs-button {
-  background: #0ea5e9 !important;
+  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
   color: white !important;
   border: none !important;
-  border-radius: 4px !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  font-weight: 600 !important;
   text-shadow: none !important;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4) !important;
+  transition: all 0.2s ease !important;
 }
 
 .introjs-button:hover {
-  background: #0284c7 !important;
+  background: linear-gradient(135deg, #0284c7, #0891b2) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5) !important;
 }
 
 .introjs-button.introjs-disabled {
   background: #475569 !important;
   color: #94a3b8 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.introjs-skipbutton {
+  background: transparent !important;
+  color: #94a3b8 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+}
+
+.introjs-skipbutton:hover {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+.introjs-prevbutton {
+  background: #334155 !important;
+  box-shadow: none !important;
+}
+
+.introjs-prevbutton:hover {
+  background: #475569 !important;
 }
 
 .introjs-bullets ul li a {
   background: #475569 !important;
+  border-radius: 50% !important;
+  width: 10px !important;
+  height: 10px !important;
+  transition: all 0.2s ease !important;
 }
 
 .introjs-bullets ul li a.active {
-  background: #0ea5e9 !important;
+  background: #22d3ee !important;
+  transform: scale(1.2) !important;
 }
 
 .introjs-progress {
-  background: #334155 !important;
+  background: #1e293b !important;
+  border-radius: 4px !important;
+  height: 4px !important;
 }
 
 .introjs-progressbar {
-  background: #0ea5e9 !important;
+  background: linear-gradient(90deg, #0ea5e9, #22d3ee) !important;
+  border-radius: 4px !important;
+  transition: width 0.3s ease !important;
 }
 
 .introjs-arrow {
-  border-color: #1e293b !important;
+  border-color: #0f172a !important;
 }
 
 .introjs-arrow.top {
-  border-bottom-color: #1e293b !important;
+  border-bottom-color: #0f172a !important;
 }
 
 .introjs-arrow.right {
-  border-left-color: #1e293b !important;
+  border-left-color: #0f172a !important;
 }
 
 .introjs-arrow.bottom {
-  border-top-color: #1e293b !important;
+  border-top-color: #0f172a !important;
 }
 
 .introjs-arrow.left {
-  border-right-color: #1e293b !important;
+  border-right-color: #0f172a !important;
+}
+
+.introjs-overlay {
+  background: rgba(2, 6, 23, 0.75) !important;
+  animation: overlay-fade-in 0.3s ease-out !important;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Responsive */
@@ -409,14 +443,11 @@ input:checked + .slider:before {
   }
 
   .header-content {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+    gap: 0.5rem;
   }
 
   .header-controls {
-    flex-direction: column;
-    gap: 10px;
+    gap: 0.5rem;
   }
 
   .app-title {
@@ -424,33 +455,28 @@ input:checked + .slider:before {
   }
 
   .app-subtitle {
+    display: block;
+    color: #94a3b8;
     font-size: 0.9rem;
-    margin-top: 0.25rem;
+    margin-top: 0.5rem;
+  }
+
+  .header-badge {
+    display: none;
+  }
+
+  .tour-btn-text {
+    display: none;
+  }
+
+  .tour-btn {
+    padding: 10px;
   }
 }
 
 @media (max-width: 480px) {
-  .mode-switcher {
-    padding: 6px 12px;
-  }
-
-  .mode-label {
-    font-size: 0.8rem;
-  }
-
-  .switch {
-    width: 40px;
-    height: 20px;
-  }
-
-  .slider:before {
-    height: 14px;
-    width: 14px;
-  }
-
   .tour-btn {
-    padding: 6px 12px;
-    font-size: 0.8rem;
+    padding: 8px;
   }
 }
 .logo-image {

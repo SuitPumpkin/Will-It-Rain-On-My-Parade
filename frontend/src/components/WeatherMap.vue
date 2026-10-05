@@ -1,10 +1,15 @@
 <template>
   <div class="weather-dashboard">
-    <div class="controls">
+    <div class="controls" :class="{ 'controls--visible': areControlsExpanded }">
+      <div class="topbar-brand">
+        <span class="brand-mark">⌁</span>
+        <span class="brand-label">Explore weather</span>
+      </div>
       <div class="search-container">
         <input
           type="text"
-          placeholder="Search location"
+          placeholder="Search a city or country"
+          aria-label="Search a city or country"
           v-model="searchCity"
           @input="onSearchInput"
           @keyup.enter="selectFirstSuggestion"
@@ -28,181 +33,324 @@
           </div>
         </div>
       </div>
-      <div class="controls-group">
-        <button @click="clearPin">Clear pin</button>
-        <select v-model="selectedYear">
-          <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
-        </select>
-        <select v-model="selectedMonth">
-          <option v-for="(m, index) in months" :key="index" :value="index">
-            {{ m }}
-          </option>
-        </select>
-        <select v-model="selectedDay">
-          <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
-        </select>
-        <button @click="fetchAllWeatherData" :disabled="isLoading">
-          {{ isLoading ? "Searching..." : "Get Results" }}
-        </button>
-        <div class="dropdown" data-intro-group="expert">
-          <button
-            class="download-btn"
-            :disabled="!hasDataToDownload || isLoading"
-          >
-            📥 Download
+      <button
+        class="filters-toggle"
+        :class="{ active: areControlsExpanded }"
+        @click="areControlsExpanded = !areControlsExpanded"
+        :aria-expanded="areControlsExpanded"
+        aria-controls="weather-controls"
+      >
+        <span class="filters-toggle-icon">☷</span>
+        <span class="filters-toggle-text">{{
+          areControlsExpanded ? "Hide tools" : "Plan a date"
+        }}</span>
+      </button>
+      <transition name="controls-group" appear>
+        <div
+          v-if="areControlsExpanded"
+          id="weather-controls"
+          class="controls-group"
+        >
+          <button class="secondary-btn controls-group-item" @click="clearPin">
+            Clear pin
           </button>
-          <div class="dropdown-content">
-            <a href="#" @click.prevent="downloadData('pdf')">PDF</a>
-            <a href="#" @click.prevent="downloadData('csv')">CSV</a>
-            <a href="#" @click.prevent="downloadData('json')">JSON</a>
-            <a href="#" @click.prevent="downloadData('jpg')">JPG Image</a>
+          <span class="date-label controls-group-item">Weather for</span>
+          <select v-model="selectedYear" class="controls-group-item">
+            <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+          </select>
+          <select v-model="selectedMonth" class="controls-group-item">
+            <option v-for="(m, index) in months" :key="index" :value="index">
+              {{ m }}
+            </option>
+          </select>
+          <select v-model="selectedDay" class="controls-group-item">
+            <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
+          </select>
+          <button
+            class="controls-group-item"
+            @click="fetchAllWeatherData"
+            :disabled="isLoading"
+          >
+            {{ isLoading ? "Loading..." : "Check weather" }}
+          </button>
+          <div
+            class="dropdown controls-group-item"
+            data-intro-group="expert"
+            @mouseleave="showDropdown = false"
+          >
+            <button
+              class="download-btn"
+              :disabled="!hasDataToDownload || isLoading"
+              @click="showDropdown = !showDropdown"
+            >
+              <span class="download-icon">📥</span>
+              <span>Download</span>
+            </button>
+            <transition name="dropdown">
+              <div v-show="showDropdown" class="dropdown-content">
+                <a
+                  href="#"
+                  @click.prevent="
+                    downloadData('pdf');
+                    showDropdown = false;
+                  "
+                  >PDF</a
+                >
+                <a
+                  href="#"
+                  @click.prevent="
+                    downloadData('csv');
+                    showDropdown = false;
+                  "
+                  >CSV</a
+                >
+                <a
+                  href="#"
+                  @click.prevent="
+                    downloadData('json');
+                    showDropdown = false;
+                  "
+                  >JSON</a
+                >
+                <a
+                  href="#"
+                  @click.prevent="
+                    downloadData('jpg');
+                    showDropdown = false;
+                  "
+                  >JPG Image</a
+                >
+              </div>
+            </transition>
           </div>
         </div>
-      </div>
+      </transition>
     </div>
 
     <div class="main-content">
       <div id="map"></div>
-      <div class="dashboard">
-        <h2>Results Dashboard</h2>
-        <div v-if="clickedCoordinates" class="coordinates-info">
-          <h3>Selected Coordinates</h3>
-          <div class="stat">
-            <span>Latitude</span>
-            <span class="value">{{ clickedCoordinates.lat.toFixed(4) }}</span>
-          </div>
-          <div class="stat">
-            <span>Longitude</span>
-            <span class="value">{{ clickedCoordinates.lng.toFixed(4) }}</span>
-          </div>
+      <transition name="dashboard" appear>
+        <div class="dashboard" :class="{ expanded: isResultsExpanded }">
           <button
-            @click="fetchAllWeatherData"
-            class="coords-button"
-            :disabled="isLoading"
+            class="dashboard-handle"
+            @click="isResultsExpanded = !isResultsExpanded"
+            :aria-expanded="isResultsExpanded"
+            aria-controls="weather-results"
           >
-            {{
-              isLoading ? "Retrieving..." : "Get Weather for These Coordinates"
-            }}
-          </button>
-        </div>
-
-        <div v-if="weatherData || forecastData" class="view-toggle">
-          <button
-            :class="{ active: viewMode === 'forecast' }"
-            @click="viewMode = 'forecast'"
-          >
-            Forecast
-          </button>
-          <button
-            :class="{ active: viewMode === 'historical' }"
-            @click="viewMode = 'historical'"
-          >
-            Historical
-          </button>
-        </div>
-
-        <div v-if="isLoading" class="loading-indicator">Loading Data...</div>
-
-        <div v-if="viewMode === 'forecast' && forecastData && !isLoading">
-          <div v-if="forecastData.status === 'unavailable'" class="coming-soon">
-            <h3>Forecast Not Available</h3>
-            <p>{{ forecastData.message }}</p>
-          </div>
-
-          <div v-else-if="forecastData.main_day">
-            <div class="main-day-view">
-              <h3>Weather for {{ forecastData.main_day.date }}</h3>
-              <div class="stat">
-                <span>Max / Min Temp.</span>
-                <span class="value"
-                  >{{ forecastData.main_day.max }}° /
-                  {{ forecastData.main_day.min }}°C</span
-                >
-              </div>
-              <div class="stat">
-                <span>Rain Probability</span>
-                <span class="value">{{ forecastData.main_day.rainProb }}%</span>
-              </div>
-            </div>
-            <div
-              v-if="forecastData.forecast && forecastData.forecast.length > 0"
-              class="forecast-view"
+            <span class="handle-summary">
+              <span class="handle-icon">{{
+                weatherData || forecastData ? "☁" : "⌖"
+              }}</span>
+              <span>
+                <strong>{{
+                  weatherData || forecastData
+                    ? "Weather ready"
+                    : "Explore the map"
+                }}</strong>
+                <small>{{
+                  weatherData || forecastData
+                    ? "Tap to see the full forecast"
+                    : "Select a location to get started"
+                }}</small>
+              </span>
+            </span>
+            <span class="handle-action"
+              >{{ isResultsExpanded ? "Close" : "Details" }}
+              <b class="handle-chevron">{{
+                isResultsExpanded ? "⌄" : "⌃"
+              }}</b></span
             >
-              <h4>Next 4 Days Forecast</h4>
-              <div class="forecast-grid">
-                <div
-                  class="forecast-card"
-                  v-for="day in forecastData.forecast"
-                  :key="day.date"
+          </button>
+          <transition name="dashboard-content" appear>
+            <div
+              v-if="isResultsExpanded"
+              id="weather-results"
+              class="dashboard-content"
+            >
+              <div class="dashboard-heading">
+                <div>
+                  <p class="eyebrow">At a glance</p>
+                  <h2>Weather summary</h2>
+                </div>
+                <span v-if="weatherData || forecastData" class="status-dot"
+                  >Updated</span
                 >
-                  <span class="date">{{
-                    new Date(day.date + "T00:00:00").toLocaleDateString(
-                      "en-US",
-                      {
-                        weekday: "short",
-                        day: "numeric",
-                      }
-                    )
+              </div>
+              <p
+                v-if="!weatherData && !forecastData && !isLoading"
+                class="dashboard-hint"
+              >
+                Search for a location or click the map. Your summary and
+                detailed trends will appear here.
+              </p>
+              <div v-if="clickedCoordinates" class="coordinates-info">
+                <h3>Selected Coordinates</h3>
+                <div class="stat">
+                  <span>Latitude</span>
+                  <span class="value">{{
+                    clickedCoordinates.lat.toFixed(4)
                   }}</span>
-                  <span class="temps">{{ day.max }}°/{{ day.min }}°</span>
-                  <span class="rain">💧 {{ day.rainProb }}%</span>
+                </div>
+                <div class="stat">
+                  <span>Longitude</span>
+                  <span class="value">{{
+                    clickedCoordinates.lng.toFixed(4)
+                  }}</span>
+                </div>
+                <button
+                  @click="fetchAllWeatherData"
+                  class="coords-button"
+                  :disabled="isLoading"
+                >
+                  {{
+                    isLoading
+                      ? "Retrieving..."
+                      : "Get Weather for These Coordinates"
+                  }}
+                </button>
+              </div>
+
+              <div v-if="weatherData || forecastData" class="view-toggle">
+                <button
+                  :class="{ active: viewMode === 'forecast' }"
+                  @click="viewMode = 'forecast'"
+                >
+                  Forecast
+                </button>
+                <button
+                  :class="{ active: viewMode === 'historical' }"
+                  @click="viewMode = 'historical'"
+                >
+                  Historical
+                </button>
+              </div>
+
+              <div v-if="isLoading" class="loading-indicator">
+                Loading Data...
+              </div>
+
+              <div v-if="viewMode === 'forecast' && forecastData && !isLoading">
+                <div
+                  v-if="forecastData.status === 'unavailable'"
+                  class="coming-soon"
+                >
+                  <h3>Forecast Not Available</h3>
+                  <p>{{ forecastData.message }}</p>
+                </div>
+
+                <div v-else-if="forecastData.main_day">
+                  <div class="main-day-view">
+                    <h3>Weather for {{ forecastData.main_day.date }}</h3>
+                    <div class="stat">
+                      <span>Max / Min Temp.</span>
+                      <span class="value"
+                        >{{ forecastData.main_day.max }}° /
+                        {{ forecastData.main_day.min }}°C</span
+                      >
+                    </div>
+                    <div class="stat">
+                      <span>Rain Probability</span>
+                      <span class="value"
+                        >{{ forecastData.main_day.rainProb }}%</span
+                      >
+                    </div>
+                  </div>
+                  <div
+                    v-if="
+                      forecastData.forecast && forecastData.forecast.length > 0
+                    "
+                    class="forecast-view"
+                  >
+                    <h4>Next 4 Days Forecast</h4>
+                    <div class="forecast-grid">
+                      <div
+                        class="forecast-card"
+                        v-for="day in forecastData.forecast"
+                        :key="day.date"
+                      >
+                        <span class="date">{{
+                          new Date(day.date + "T00:00:00").toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "short",
+                              day: "numeric",
+                            }
+                          )
+                        }}</span>
+                        <span class="temps">{{ day.max }}°/{{ day.min }}°</span>
+                        <span class="rain">💧 {{ day.rainProb }}%</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div v-if="viewMode === 'historical' && weatherData && !isLoading">
-          <div class="historical-summary">
-            <h3>Historical Average (Previous 5 Years)</h3>
-            <div class="stat">
-              <span>Average Temp. (°C)</span>
-              <span class="value">{{ weatherData.temp }}</span>
-            </div>
-            <div class="stat">
-              <span>Min / Max Avg. Temp.</span
-              ><span class="value"
-                >{{ weatherData.min }}° / {{ weatherData.max }}°C</span
+              <div
+                v-if="viewMode === 'historical' && weatherData && !isLoading"
               >
-            </div>
-            <div class="stat">
-              <span>Precipitation Avg.</span
-              ><span class="value"
-                >{{ weatherData.rain }} mm / {{ weatherData.rainProb }}%</span
-              >
-            </div>
-          </div>
-          <div v-if="historicalYearlyData.length > 0" class="historical-data">
-            <h3>Detailed History</h3>
-            <div
-              class="stat"
-              v-for="record in historicalYearlyData"
-              :key="record.date"
-            >
-              <span>{{ record.date.split("-")[0] }}</span>
-              <span class="value"
-                >🌡️ {{ record.max }}° / {{ record.min }}° &nbsp; 💧
-                {{ record.rainProb }}%</span
-              >
-            </div>
-          </div>
-          <div v-if="recommendations.length > 0" class="recommendations">
-            <h3>Recommendations</h3>
-            <ul>
-              <li v-for="(rec, index) in recommendations" :key="index">
-                {{ rec }}
-              </li>
-            </ul>
-          </div>
-        </div>
+                <div class="historical-summary">
+                  <h3>Historical Average (Previous 5 Years)</h3>
+                  <div class="stat">
+                    <span>Average Temp. (°C)</span>
+                    <span class="value">{{ weatherData.temp }}</span>
+                  </div>
+                  <div class="stat">
+                    <span>Min / Max Avg. Temp.</span
+                    ><span class="value"
+                      >{{ weatherData.min }}° / {{ weatherData.max }}°C</span
+                    >
+                  </div>
+                  <div class="stat">
+                    <span>Precipitation Avg.</span
+                    ><span class="value"
+                      >{{ weatherData.rain }} mm /
+                      {{ weatherData.rainProb }}%</span
+                    >
+                  </div>
+                </div>
+                <div
+                  v-if="historicalYearlyData.length > 0"
+                  class="historical-data"
+                >
+                  <h3>Detailed History</h3>
+                  <div
+                    class="stat"
+                    v-for="record in historicalYearlyData"
+                    :key="record.date"
+                  >
+                    <span>{{ record.date.split("-")[0] }}</span>
+                    <span class="value"
+                      >🌡️ {{ record.max }}° / {{ record.min }}° &nbsp; 💧
+                      {{ record.rainProb }}%</span
+                    >
+                  </div>
+                </div>
+                <div v-if="recommendations.length > 0" class="recommendations">
+                  <h3>Recommendations</h3>
+                  <ul>
+                    <li v-for="(rec, index) in recommendations" :key="index">
+                      {{ rec }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
 
-        <div v-if="!isLoading && !weatherData && !forecastData" class="no-data">
-          Click on the map or search for a city to get weather information.
-        </div>
+              <div
+                v-if="!isLoading && !weatherData && !forecastData"
+                class="no-data"
+              >
+                Click on the map or search for a city to get weather
+                information.
+              </div>
 
-        <h3>Temperature Chart (24h)</h3>
-        <div class="chart-container"><canvas ref="chartCanvas"></canvas></div>
-      </div>
+              <h3>Temperature Chart (24h)</h3>
+              <div class="chart-container">
+                <canvas ref="chartCanvas"></canvas>
+              </div>
+            </div>
+          </transition>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -250,6 +398,8 @@ const selectedMonth = ref(new Date().getMonth().toString());
 const selectedDay = ref(new Date().getDate().toString());
 const clickedCoordinates = ref(null);
 const isLoading = ref(false);
+const areControlsExpanded = ref(false);
+const isResultsExpanded = ref(false);
 const viewMode = ref("forecast");
 const weatherData = ref(null);
 const forecastData = ref(null);
@@ -262,6 +412,7 @@ const hourlyData = ref(
 const allCities = ref([]);
 const showSuggestionsList = ref(false);
 const selectedSuggestionIndex = ref(-1);
+const showDropdown = ref(false);
 
 // LÍNEA NUEVA (Muestra hasta 2 años en el futuro)
 const years = Array.from({ length: 33 }, (_, i) =>
@@ -474,6 +625,7 @@ async function fetchAllWeatherData() {
 
   updateHourlyDataForChart();
   isLoading.value = false;
+  isResultsExpanded.value = true;
 
   if (currentMarker) map.removeLayer(currentMarker);
   currentMarker = L.marker([lat, lon])
@@ -584,6 +736,7 @@ onMounted(async () => {
     }
 
     clickedCoordinates.value = e.latlng;
+    isResultsExpanded.value = true;
     selectedCity.value = "";
     searchCity.value = "";
     clearData();
@@ -832,30 +985,401 @@ const downloadJPG = async () => {
 </script>
 
 <style scoped>
+/* ========================================
+   ANIMATIONS & TRANSITIONS
+   ======================================== */
+
+/* Dashboard (bottom dock) animations */
+.dashboard-enter-active,
+.dashboard-leave-active {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dashboard-enter-from,
+.dashboard-leave-to {
+  opacity: 0;
+  transform: translateY(100%) scale(0.98);
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.dashboard-move {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Dashboard content (inner expand/collapse) */
+.dashboard-content-enter-active,
+.dashboard-content-leave-active {
+  transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.dashboard-content-enter-from,
+.dashboard-content-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+  max-height: 0;
+  overflow: hidden;
+}
+
+/* Controls panel animations */
+.controls-group-enter-active,
+.controls-group-leave-active {
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.controls-group-enter-from,
+.controls-group-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Staggered animation for controls-group children */
+.controls-group-enter-active .controls-group-item,
+.controls-group-leave-active .controls-group-item {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.controls-group-enter-from .controls-group-item,
+.controls-group-leave-to .controls-group-item {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+}
+
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(1) { transition-delay: 0.05s; }
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(2) { transition-delay: 0.1s; }
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(3) { transition-delay: 0.15s; }
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(4) { transition-delay: 0.2s; }
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(5) { transition-delay: 0.25s; }
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(6) { transition-delay: 0.3s; }
+/* prettier-ignore */
+.controls-group-enter-active .controls-group-item:nth-child(7) { transition-delay: 0.35s; }
+
+/* Dropdown animations */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease-out;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+  pointer-events: none;
+}
+
+/* Handle chevron rotation */
+.handle-chevron {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: inline-block;
+}
+
+/* Brand mark pulse */
+.brand-mark {
+  animation: brand-pulse 3s ease-in-out infinite;
+}
+
+@keyframes brand-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(56, 189, 248, 0);
+  }
+}
+
+/* Search input focus animation */
+.search-container input:focus {
+  animation: search-glow 0.3s ease-out;
+}
+
+@keyframes search-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0);
+  }
+}
+
+/* Button hover/tap animations */
+.controls button:not(:disabled):active,
+.filters-toggle:not(:disabled):active,
+.download-btn:not(:disabled):active,
+.secondary-btn:not(:disabled):active,
+.coords-button:active,
+.view-toggle button:active,
+.dashboard-handle:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+/* Filters toggle icon rotation */
+.filters-toggle-icon {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.filters-toggle.active .filters-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Download button icon bounce */
+.download-icon {
+  transition: transform 0.3s ease;
+}
+
+.download-btn:hover .download-icon {
+  transform: translateY(2px);
+}
+
+/* Stat items staggered entrance */
+.stat {
+  opacity: 0;
+  animation: stat-slide-in 0.4s ease-out forwards;
+}
+
+.stat:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.stat:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.stat:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.stat:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.stat:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+@keyframes stat-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Forecast cards staggered entrance */
+.forecast-card {
+  opacity: 0;
+  animation: card-slide-up 0.4s ease-out forwards;
+}
+
+.forecast-card:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.forecast-card:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.forecast-card:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.forecast-card:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+@keyframes card-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Recommendations list */
+.recommendations li {
+  opacity: 0;
+  animation: list-fade-in 0.3s ease-out forwards;
+}
+
+.recommendations li:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.recommendations li:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.recommendations li:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+@keyframes list-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Loading indicator pulse */
+.loading-indicator {
+  animation: loading-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Suggestions list */
+.suggestions {
+  animation: suggestions-slide-down 0.2s ease-out;
+}
+
+@keyframes suggestions-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Weather dashboard container */
 .weather-dashboard {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  height: 100dvh;
+  min-height: 100vh;
   font-family: "Segoe UI", sans-serif;
   background: #0f172a;
   color: white;
-  padding: 1rem;
-  min-height: 100vh;
+  overflow: hidden;
 }
+
 .controls {
+  position: absolute;
+  top: 5rem;
+  left: clamp(1rem, 3vw, 2rem);
+  right: clamp(1rem, 3vw, 2rem);
+  z-index: 1000;
   display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.25rem;
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
+  backdrop-filter: blur(14px);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.controls--visible {
+  padding: 0.45rem 0.75rem;
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.32);
+}
+
+/* Smooth transitions for controls children */
+.topbar-brand {
+  transition: opacity 0.3s ease, transform 0.3s ease, width 0.3s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.controls--visible .topbar-brand {
+  opacity: 0.7;
+  transform: scale(0.95);
+}
+
+.search-container {
+  /* prettier-ignore */
+  transition: flex 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), min-width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.filters-toggle {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.filters-toggle-text {
+  transition: opacity 0.2s ease;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #e2e8f0;
+  padding: 0 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.6rem;
+  color: #0f172a;
+  background: linear-gradient(135deg, #67e8f9, #38bdf8);
+  font-size: 1.35rem;
+  font-weight: 900;
 }
 .search-container {
   position: relative;
   flex-grow: 1;
-  min-width: 250px;
+  min-width: 200px;
+}
+.search-container input {
+  width: 100%;
+  min-height: 40px;
+  padding-left: 1rem;
+  border-radius: 0.8rem;
+  background: rgba(30, 41, 59, 0.82);
 }
 .controls-group {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
+  padding-left: 0.25rem;
+}
+.date-label {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 .controls input,
 .controls select,
@@ -871,6 +1395,41 @@ const downloadJPG = async () => {
 .controls button {
   background-color: #0ea5e9;
   cursor: pointer;
+  min-height: 42px;
+  font-weight: 600;
+  border-radius: 0.75rem;
+}
+.controls input,
+.controls select {
+  min-height: 42px;
+}
+.controls input:focus,
+.controls select:focus,
+.controls button:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+.controls .secondary-btn {
+  background: #334155;
+  color: #cbd5e1;
+}
+.filters-toggle {
+  min-height: 40px;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 0.8rem;
+  background: rgba(14, 165, 233, 0.12);
+  color: #bae6fd;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filters-toggle:hover,
+.filters-toggle.active {
+  background: #0ea5e9;
+  color: white;
+}
+.controls .secondary-btn:hover {
+  background: #475569;
 }
 .controls button:disabled {
   background: #475569;
@@ -899,26 +1458,122 @@ const downloadJPG = async () => {
   background: #334155;
 }
 .main-content {
-  display: flex;
-  gap: 1rem;
-  flex: 1;
-  min-height: 500px;
+  position: absolute;
+  inset: 0;
 }
 #map {
-  flex: 2;
-  border-radius: 12px;
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
 }
 .dashboard {
-  flex: 1;
+  position: absolute;
+  left: clamp(1rem, 3vw, 2rem);
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: 1rem;
+  z-index: 1000;
+  max-width: 1400px;
+  max-height: min(62vh, 680px);
+  margin: 0 auto;
   background: #1e293b;
-  border-radius: 12px;
-  padding: 1.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 1rem;
+  padding: 0.55rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-width: 320px;
-  max-width: 450px;
   overflow-y: auto;
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.38);
+  backdrop-filter: blur(14px);
+}
+.dashboard.expanded {
+  padding: 0.8rem clamp(0.8rem, 2vw, 1.25rem);
+}
+.dashboard-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 3.1rem;
+  padding: 0.35rem 0.6rem;
+  border: 0;
+  border-radius: 0.8rem;
+  color: #f8fafc;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.dashboard-handle:hover {
+  background: rgba(51, 65, 85, 0.55);
+}
+.handle-summary,
+.handle-action {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.handle-summary small {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  margin-top: 0.15rem;
+}
+.handle-icon {
+  display: grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.75rem;
+  background: rgba(14, 165, 233, 0.18);
+  color: #67e8f9;
+  font-size: 1.15rem;
+}
+.handle-action {
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.handle-action b {
+  font-size: 1.1rem;
+}
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.dashboard-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.dashboard-heading h2 {
+  margin: 0.15rem 0 0;
+}
+.eyebrow {
+  color: #38bdf8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.status-dot {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.6rem;
+  white-space: nowrap;
+}
+.dashboard-hint {
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: -0.25rem 0 0;
 }
 .stat {
   display: flex;
@@ -1044,15 +1699,39 @@ h4 {
   border-bottom: none;
 }
 @media (max-width: 768px) {
-  .main-content {
-    flex-direction: column;
+  .controls {
+    top: 4.5rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    flex-wrap: wrap;
+    border-radius: 1rem;
   }
-  #map {
-    height: 350px;
-    flex-grow: 0;
+  .topbar-brand {
+    display: none;
+  }
+  .search-container {
+    min-width: 0;
+    flex: 1;
+  }
+  .filters-toggle {
+    flex: 0 0 auto;
+  }
+  .controls-group {
+    width: 100%;
+    padding: 0.25rem 0;
+  }
+  .controls-group select {
+    flex: 1;
+    min-width: 0;
   }
   .dashboard {
-    max-width: 100%;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    max-height: 58vh;
+  }
+  .forecast-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 .dropdown {
@@ -1082,8 +1761,12 @@ h4 {
   opacity: 0.6;
 }
 
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
 .dropdown-content {
-  display: none;
   position: absolute;
   background-color: #1e293b;
   min-width: 120px;
@@ -1092,6 +1775,7 @@ h4 {
   border-radius: 6px;
   border: 1px solid #334155;
   right: 0;
+  overflow: hidden;
 }
 
 .dropdown-content a {
@@ -1109,9 +1793,5 @@ h4 {
 
 .dropdown-content a:hover {
   background-color: #334155;
-}
-
-.dropdown:hover .dropdown-content {
-  display: block;
 }
 </style>
