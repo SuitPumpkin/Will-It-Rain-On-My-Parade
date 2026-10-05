@@ -124,6 +124,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import L from "leaflet";
+import { API_URL } from "../config";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -212,13 +213,11 @@ async function fetchWeather() {
 
     const [historicalRes, forecastRes] = await Promise.all([
       fetch(
-        `http://127.0.0.1:8000/weather?lat=${lat}&lon=${lon}&day=${
+        `${API_URL}/weather?lat=${lat}&lon=${lon}&day=${
           selectedDay.value
         }&month=${Number(selectedMonth.value) + 1}&year=${selectedYear.value}`
       ),
-      fetch(
-        `http://127.0.0.1:8000/forecast?lat=${lat}&lon=${lon}&date=${formattedDate}`
-      ),
+      fetch(`${API_URL}/forecast?lat=${lat}&lon=${lon}&date=${formattedDate}`),
     ]);
 
     const historicalData = historicalRes.ok ? await historicalRes.json() : null;

@@ -72,6 +72,14 @@ NASA_API_KEY=your_nasa_api_key
 
 - When deploying on Render, configure `NASA_API_KEY` as an environment variable in the backend service settings. Do not commit the `.env` file.
 
+- Configure the backend allowed frontend origins with `CORS_ORIGINS`, using comma-separated URLs:
+
+```env
+CORS_ORIGINS=http://localhost:8080,http://localhost:5173
+```
+
+- For the frontend, copy `frontend/.env.example` to `frontend/.env.local` for local development. On Render, set `VUE_APP_API_URL` to the public URL of the backend service.
+
 - **Install dependencies (frontend):**
 - Go to the frontend directory:
 
@@ -91,6 +99,25 @@ NASA_API_KEY=your_nasa_api_key
 - **Additional configuration:**
 - Pronostika uses the NASA POWER API. The backend requires the `NASA_API_KEY` environment variable to be configured before it starts.
 - If desired, adjust parameters in the code (e.g., “very rainy” thresholds) within the backend configuration files.
+
+## Deployment on Render
+
+Create a **Web Service** for `backend` with:
+
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/health`
+- Environment variables: `NASA_API_KEY` and `CORS_ORIGINS`
+
+Create a **Static Site** for `frontend` with:
+
+- Root directory: `frontend`
+- Build command: `npm ci && npm run build`
+- Publish directory: `dist`
+- Environment variable: `VUE_APP_API_URL=https://<backend-service>.onrender.com`
+
+After the frontend is deployed, update the backend's `CORS_ORIGINS` to its exact public URL, for example `https://<frontend-site>.onrender.com`. Multiple origins can be separated by commas.
 
 With these steps, you will have a local copy of the application up and running. The structure is independent of external services (we do not rely on third-party databases) and can be tested without additional keys.
 

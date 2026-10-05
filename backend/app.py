@@ -15,8 +15,14 @@ if not NASA_API_KEY:
 
 app = FastAPI()
 
-# Configuración de CORS
-origins = ["http://localhost:8080", "http://localhost:5173"]
+origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:8080,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -24,6 +30,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 def simulate_hourly_temps(min_temp, max_temp):
     if min_temp is None or max_temp is None or min_temp == -999 or max_temp == -999:
         return [{"hour": f"{i}:00", "temp": 0} for i in range(24)]

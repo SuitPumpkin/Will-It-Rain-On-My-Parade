@@ -210,6 +210,7 @@
 <script setup>
 import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import L from "leaflet";
+import { API_URL } from "../config";
 import {
   Chart as ChartJS,
   Title,
@@ -346,7 +347,7 @@ async function fetchAllWeatherData() {
 
   try {
     const historicalPromise = fetch(
-      `http://127.0.0.1:8000/weather?lat=${lat}&lon=${lon}&day=${
+      `${API_URL}/weather?lat=${lat}&lon=${lon}&day=${
         selectedDay.value
       }&month=${Number(selectedMonth.value) + 1}&year=${selectedYear.value}`
     );
@@ -368,7 +369,7 @@ async function fetchAllWeatherData() {
     } else {
       viewMode.value = "forecast";
       const forecastPromise = fetch(
-        `http://127.0.0.1:8000/forecast?lat=${lat}&lon=${lon}&date=${selectedFullDate.value}`
+        `${API_URL}/forecast?lat=${lat}&lon=${lon}&date=${selectedFullDate.value}`
       );
       const [historicalRes, forecastRes] = await Promise.all([
         historicalPromise,
