@@ -1,11 +1,17 @@
-import requests
+import os
 from datetime import datetime, timedelta
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import math
 
-#API
-NASA_API_KEY = "XAGC8IHl7BEtkaJ0UcPhAQhQmKEoQGZMxPev0Z1y"
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import requests
+
+load_dotenv()
+
+NASA_API_KEY = os.getenv("NASA_API_KEY")
+if not NASA_API_KEY:
+    raise RuntimeError("The NASA_API_KEY environment variable must be configured.")
 
 app = FastAPI()
 

@@ -63,6 +63,15 @@ To run Pronostika locally, follow these steps:
 
 - pip install -r requirements.txt
 
+- **Configure the backend environment:**
+- Create a `backend/.env` file based on `backend/.env.example` and add your NASA API key:
+
+```env
+NASA_API_KEY=your_nasa_api_key
+```
+
+- When deploying on Render, configure `NASA_API_KEY` as an environment variable in the backend service settings. Do not commit the `.env` file.
+
 - **Install dependencies (frontend):**
 - Go to the frontend directory:
 
@@ -80,7 +89,7 @@ To run Pronostika locally, follow these steps:
 
 - Open your browser at <http://localhost:8080> (or the specified port) to use Pronostika.
 - **Additional configuration:**
-- Pronostika uses public NASA APIs that do not require a private key. Make sure you have an internet connection so that the backend can retrieve real-time weather data.
+- Pronostika uses the NASA POWER API. The backend requires the `NASA_API_KEY` environment variable to be configured before it starts.
 - If desired, adjust parameters in the code (e.g., “very rainy” thresholds) within the backend configuration files.
 
 With these steps, you will have a local copy of the application up and running. The structure is independent of external services (we do not rely on third-party databases) and can be tested without additional keys.
